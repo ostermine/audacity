@@ -56,18 +56,11 @@ void EffectsActionsController::init()
     });
 
     // live MIDI: (re)schedule the notes of live-enabled MIDI tracks into
-    // their realtime instrument instances whenever playback starts.
-    // Deferred: the audio engine (re)initializes the realtime instances at
-    // stream start, which clears their note queues and creates the realtime
-    // sub-processors - scheduling instantly would be wiped out. The schedule
-    // uses the CURRENT playback position, so the delay does not skew timing.
+    // their realtime instrument instances whenever playback starts
+    // (the wrapper keeps the queue across the engine's realtime init)
     playbackController()->isPlayingChanged().onNotify(this, [this]() {
         if (playbackController()->isPlaying()) {
-            QTimer::singleShot(300, [this]() {
-                if (playbackController()->isPlaying()) {
-                    scheduleLiveMidiNotes();
-                }
-            });
+            scheduleLiveMidiNotes();
         }
     });
 }

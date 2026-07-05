@@ -783,9 +783,17 @@ bool VST3Wrapper::Initialize(EffectSettings& settings, Steinberg::Vst::SampleRat
     constexpr auto fallbackOnDefaults = false;
     FetchSettings(settings, fallbackOnDefaults);
 
-    mPendingEvents.clear();
+    {
+        std::lock_guard<std::mutex> lock(mPendingEventsMutex);
+        //(AU4 DAW fork) live-MIDI notes are scheduled around realtime stream
+        //start; keep them across the engine's (re)initialization. Offline
+        //renders still begin from a clean queue.
+        if (mSetup.processMode != Steinberg::Vst::kRealtime) {
+            mPendingEvents.clear();
+        }
+        mProcessedSamples = 0;
+    }
     mInputEvents.setMaxSize(512);
-    mProcessedSamples = 0;
 
     if (mEffectComponent->setActive(true) == kResultOk) {
         if (mAudioProcessor->setProcessing(true) != kResultFalse) {

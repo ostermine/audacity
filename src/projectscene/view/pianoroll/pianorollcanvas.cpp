@@ -152,6 +152,17 @@ void PianoRollCanvas::requestRender()
                            muse::actions::ActionData::make_arg1<int64_t>(m_trackId.toLongLong()));
 }
 
+void PianoRollCanvas::auditionPitch(int pitch)
+{
+    // audible while the live instrument chain is processing (live mode + playback)
+    if (m_trackId.isEmpty()) {
+        return;
+    }
+    dispatcher()->dispatch("midi-audition-note",
+                           muse::actions::ActionData::make_arg2<int64_t, int>(
+                               m_trackId.toLongLong(), std::clamp(pitch, 0, 127)));
+}
+
 void PianoRollCanvas::requestInstrumentUi()
 {
     if (m_trackId.isEmpty()) {
@@ -372,11 +383,8 @@ void PianoRollCanvas::mousePressEvent(QMouseEvent* event)
     const double y = event->position().y();
 
     if (x <= KEYBOARD_W) {
-        // audition the key through the live instrument (live mode + playback)
-        if (event->button() == Qt::LeftButton && !m_trackId.isEmpty()) {
-            dispatcher()->dispatch("midi-audition-note",
-                                   muse::actions::ActionData::make_arg2<int64_t, int>(
-                                       m_trackId.toLongLong(), std::clamp(yToPitch(y), 0, 127)));
+        if (event->button() == Qt::LeftButton) {
+            auditionPitch(yToPitch(y));
         }
         event->accept();
         return;
@@ -402,6 +410,9 @@ void PianoRollCanvas::mousePressEvent(QMouseEvent* event)
         m_gestureIndex = hit.value();
         m_grabBeatOffset = xToBeat(x) - m_gestureNotes[m_gestureIndex].startBeats;
         m_gestureModified = false;
+        if (!edge) {
+            auditionPitch(m_gestureNotes[m_gestureIndex].pitch);
+        }
     } else {
         // draw a new note; drag continues as move
         MidiNote note;
@@ -416,6 +427,7 @@ void PianoRollCanvas::mousePressEvent(QMouseEvent* event)
         m_gesture = Gesture::Move;
         m_grabBeatOffset = 0.0;
         m_gestureModified = true; // creation itself is a change
+        auditionPitch(note.pitch);
     }
 
     update();
@@ -435,6 +447,9 @@ void PianoRollCanvas::mouseMoveEvent(QMouseEvent* event)
         const double newStart = std::max(0.0, snapFloor(beat - m_grabBeatOffset + gridStep() / 2));
         const int newPitch = std::clamp(yToPitch(event->position().y()), 0, 127);
         if (!qFuzzyCompare(newStart, note.startBeats) || newPitch != note.pitch) {
+            if (newPitch != note.pitch) {
+                auditionPitch(newPitch);
+            }
             note.startBeats = newStart;
             note.pitch = newPitch;
             m_gestureModified = true;

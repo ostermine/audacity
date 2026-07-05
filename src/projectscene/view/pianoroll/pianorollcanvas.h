@@ -85,6 +85,7 @@ private:
     double pitchToY(int pitch) const;
     int yToPitch(double y) const;
     double snapFloor(double beat) const;
+    void auditionPitch(int pitch);
 
     //! index of the note under the point; edge=true if near its right edge
     std::optional<size_t> hitTest(const std::vector<MidiNote>& notes, double x, double y, bool& edge) const;
@@ -101,7 +102,7 @@ private:
     double m_grabBeatOffset = 0.0;
     bool m_gestureModified = false;
 
-    bool m_autoRender = true;
+    bool m_autoRender = false;
     QTimer m_renderDebounce;
 };
 }
