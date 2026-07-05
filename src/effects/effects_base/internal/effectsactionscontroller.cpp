@@ -319,13 +319,20 @@ bool EffectsActionsController::doRenderMidiTrack(const trackedit::TrackId& track
     constexpr double releaseTailSec = 0.5;
     endSec += releaseTailSec;
 
+    // notes are relative to the clip: render at the clip's current position
+    double anchorSec = 0.0;
+    for (const auto& interval : track->Intervals()) {
+        anchorSec = interval->GetPlayStartTime();
+        break;
+    }
+
     playbackController()->stop();
 
     // the generator pipeline renders into the selected region of the track
     selectionController()->resetSelectedClips();
     selectionController()->setSelectedTracks({ trackId });
-    selectionController()->setDataSelectedStartTime(0.0, true);
-    selectionController()->setDataSelectedEndTime(endSec, true);
+    selectionController()->setDataSelectedStartTime(anchorSec, true);
+    selectionController()->setDataSelectedEndTime(anchorSec + endSec, true);
 
     MidiRenderQueue::Set(std::move(renderNotes));
     const muse::Ret ret = effectExecutionScenario()->performEffect(

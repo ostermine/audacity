@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <QQuickPaintedItem>
+#include <QTimer>
 
 #include "modularity/ioc.h"
 #include "context/iglobalcontext.h"
@@ -27,6 +28,7 @@ class PianoRollCanvas : public QQuickPaintedItem, public muse::async::Asyncable,
     Q_PROPERTY(QString trackId READ trackId WRITE setTrackId NOTIFY trackIdChanged FINAL)
     Q_PROPERTY(int gridDivision READ gridDivision WRITE setGridDivision NOTIFY gridDivisionChanged FINAL)
     Q_PROPERTY(double pixelsPerBeat READ pixelsPerBeat WRITE setPixelsPerBeat NOTIFY pixelsPerBeatChanged FINAL)
+    Q_PROPERTY(bool autoRender READ autoRender WRITE setAutoRender NOTIFY autoRenderChanged FINAL)
 
     muse::ContextInject<au::context::IGlobalContext> globalContext{ this };
     muse::ContextInject<au::trackedit::IProjectHistory> projectHistory{ this };
@@ -42,6 +44,8 @@ public:
     void setGridDivision(int division);
     double pixelsPerBeat() const;
     void setPixelsPerBeat(double value);
+    bool autoRender() const;
+    void setAutoRender(bool value);
 
     Q_INVOKABLE void zoomIn();
     Q_INVOKABLE void zoomOut();
@@ -53,6 +57,7 @@ signals:
     void trackIdChanged();
     void gridDivisionChanged();
     void pixelsPerBeatChanged();
+    void autoRenderChanged();
 
 protected:
     void componentComplete() override;
@@ -94,5 +99,8 @@ private:
     size_t m_gestureIndex = 0;
     double m_grabBeatOffset = 0.0;
     bool m_gestureModified = false;
+
+    bool m_autoRender = true;
+    QTimer m_renderDebounce;
 };
 }

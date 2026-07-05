@@ -71,6 +71,15 @@ StyledDialogView {
                 onClicked: canvas.requestRender()
             }
 
+            CheckBox {
+                text: qsTrc("projectscene", "Auto-render")
+                checked: canvas.autoRender
+
+                onClicked: {
+                    canvas.autoRender = !canvas.autoRender
+                }
+            }
+
             StyledTextLabel {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignRight

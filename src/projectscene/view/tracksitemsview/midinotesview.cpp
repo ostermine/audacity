@@ -176,7 +176,8 @@ void MidiNotesView::paint(QPainter* painter)
     const double barHeight = std::max(1.5, rowHeight * 0.8);
 
     for (const MidiNote& note : notes) {
-        const double startSec = note.startBeats * quarterSec;
+        // notes are relative to the clip, so they travel with it
+        const double startSec = m_clipTime.startTime + note.startBeats * quarterSec;
         const double lengthSec = note.lengthBeats * quarterSec;
 
         const double x = (startSec - m_clipTime.itemStartTime) * zoom;

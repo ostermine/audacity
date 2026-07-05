@@ -9,6 +9,7 @@
 #include <QCursor>
 #include <QPainter>
 
+#include "au3-wave-track/MidiInstrument.h"
 #include "au3-wave-track/MidiSequence.h"
 #include "au3-wave-track/WaveTrack.h"
 #include "au3-numeric-formats/ProjectTimeSignature.h"
@@ -42,6 +43,17 @@ PianoRollCanvas::PianoRollCanvas(QQuickItem* parent)
 {
     setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);
     setAcceptHoverEvents(true);
+
+    m_renderDebounce.setSingleShot(true);
+    m_renderDebounce.setInterval(1200);
+    connect(&m_renderDebounce, &QTimer::timeout, this, [this]() {
+        // silently skip if no instrument is assigned yet: an auto render
+        // must not nag with the "no instrument" error dialog
+        const WaveTrack* track = waveTrack();
+        if (track && !MidiInstrument::Get(*track).EffectId().empty()) {
+            requestRender();
+        }
+    });
 }
 
 PianoRollCanvas::~PianoRollCanvas() = default;
@@ -113,6 +125,23 @@ void PianoRollCanvas::zoomOut()
     setPixelsPerBeat(m_pixelsPerBeat / 1.25);
 }
 
+bool PianoRollCanvas::autoRender() const
+{
+    return m_autoRender;
+}
+
+void PianoRollCanvas::setAutoRender(bool value)
+{
+    if (m_autoRender == value) {
+        return;
+    }
+    m_autoRender = value;
+    if (!value) {
+        m_renderDebounce.stop();
+    }
+    emit autoRenderChanged();
+}
+
 void PianoRollCanvas::requestRender()
 {
     if (m_trackId.isEmpty()) {
@@ -161,6 +190,10 @@ void PianoRollCanvas::commitNotes(std::vector<MidiNote> notes)
     // repaint the mini preview in the timeline clip
     if (const auto prj = globalContext()->currentTrackeditProject()) {
         prj->notifyAboutTrackChanged(au::au3::DomConverter::track(track));
+    }
+
+    if (m_autoRender) {
+        m_renderDebounce.start();
     }
 }
 
