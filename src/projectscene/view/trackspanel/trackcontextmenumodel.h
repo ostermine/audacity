@@ -7,6 +7,7 @@
 
 #include "audio/iaudiodevicesprovider.h"
 #include "context/iglobalcontext.h"
+#include "effects/effects_base/ieffectsprovider.h"
 #include "iprojectsceneconfiguration.h"
 #include "trackedit/iprojecthistory.h"
 #include "trackedit/iselectioncontroller.h"
@@ -17,6 +18,7 @@ class TrackContextMenuModel : public muse::uicomponents::AbstractMenuModel
     Q_OBJECT
 
     muse::GlobalInject<projectscene::IProjectSceneConfiguration> projectSceneConfiguration;
+    muse::GlobalInject<effects::IEffectsProvider> effectsProvider;
 
     muse::ContextInject<audio::IAudioDevicesProvider> audioDevicesProvider{ this };
     muse::ContextInject<context::IGlobalContext> globalContext{ this };
@@ -44,6 +46,7 @@ private:
     muse::uicomponents::MenuItemList makeMonoTrackItems();
     muse::uicomponents::MenuItemList makeStereoTrackItems();
     muse::uicomponents::MenuItemList makeLabelTrackItems();
+    muse::uicomponents::MenuItemList makeMidiTrackItems();
 
     muse::uicomponents::MenuItemList makeTrackColorItems();
     muse::uicomponents::MenuItemList makeTrackFormatItems();

@@ -257,6 +257,25 @@ void EffectsActionsController::openPluginManager()
     interactive()->open("audacity://effects/plugin_manager");
 }
 
+namespace {
+//! The realtime instrument state on the track's effect stack, if live mode is on
+std::shared_ptr<RealtimeEffectState> findLiveInstrumentState(WaveTrack& track)
+{
+    const std::string& effectId = MidiInstrument::Get(track).EffectId();
+    if (effectId.empty()) {
+        return nullptr;
+    }
+    auto& list = RealtimeEffectList::Get(track);
+    for (size_t i = 0, count = list.GetStatesCount(); i < count; ++i) {
+        auto state = list.GetStateAt(i);
+        if (state && state->GetID().ToStdString() == effectId) {
+            return state;
+        }
+    }
+    return nullptr;
+}
+}
+
 void EffectsActionsController::setMidiInstrument(const muse::actions::ActionData& args)
 {
     IF_ASSERT_FAILED(args.count() == 2) {
@@ -276,10 +295,21 @@ void EffectsActionsController::setMidiInstrument(const muse::actions::ActionData
         return;
     }
 
+    // if live mode is on, migrate it to the new instrument (state is found
+    // by the OLD effect id, so look it up before overwriting)
+    const auto prevLiveState = findLiveInstrumentState(*track);
+
     MidiInstrument::Get(*track).SetEffectId(effectId);
     projectHistory()->pushHistoryState("Set MIDI instrument", "Set MIDI instrument");
 
-    doRenderMidiTrack(trackId);
+    if (prevLiveState) {
+        realtimeEffectService()->removeRealtimeEffect(trackId, prevLiveState);
+        realtimeEffectService()->addRealtimeEffect(trackId, EffectId::fromStdString(effectId));
+        if (playbackController()->isPlaying()) {
+            scheduleLiveMidiNotes();
+        }
+    }
+    // no implicit render: the user renders explicitly or plays live
 }
 
 void EffectsActionsController::renderMidiTrack(const muse::actions::ActionData& args)
@@ -301,25 +331,6 @@ void EffectsActionsController::openMidiInstrumentUi(const muse::actions::ActionD
     // user listen while tweaking, OK applies and remembers the settings
     // (EffectManager keeps them per plugin, so silent renders reuse them)
     doRenderMidiTrack(args.arg<trackedit::TrackId>(0), true);
-}
-
-namespace {
-//! The realtime instrument state on the track's effect stack, if live mode is on
-std::shared_ptr<RealtimeEffectState> findLiveInstrumentState(WaveTrack& track)
-{
-    const std::string& effectId = MidiInstrument::Get(track).EffectId();
-    if (effectId.empty()) {
-        return nullptr;
-    }
-    auto& list = RealtimeEffectList::Get(track);
-    for (size_t i = 0, count = list.GetStatesCount(); i < count; ++i) {
-        auto state = list.GetStateAt(i);
-        if (state && state->GetID().ToStdString() == effectId) {
-            return state;
-        }
-    }
-    return nullptr;
-}
 }
 
 void EffectsActionsController::toggleMidiLive(const muse::actions::ActionData& args)
@@ -477,20 +488,36 @@ bool EffectsActionsController::doRenderMidiTrack(const trackedit::TrackId& track
     constexpr double releaseTailSec = 0.5;
     endSec += releaseTailSec;
 
-    // notes are relative to the clip: render at the clip's current position
+    // notes are relative to the clip: render at the clip's current position;
+    // the region must also cover the WHOLE old clip, otherwise the generator
+    // leaves the uncovered remainder as a second clip
     double anchorSec = 0.0;
+    bool first = true;
+    double regionEndSec = 0.0;
     for (const auto& interval : track->Intervals()) {
-        anchorSec = interval->GetPlayStartTime();
-        break;
+        if (first) {
+            anchorSec = interval->GetPlayStartTime();
+            first = false;
+        }
+        regionEndSec = std::max(regionEndSec, interval->GetPlayEndTime());
     }
+    regionEndSec = std::max(regionEndSec, anchorSec + endSec);
 
     playbackController()->stop();
 
-    // the generator pipeline renders into the selected region of the track
+    // the generator pipeline renders into the selected region of the track;
+    // set the au3 selection flags directly too - the generator counts selected
+    // tracks itself and creates a NEW track when it finds none
+    {
+        auto& au3Tracks = au::au3::Au3TrackList::Get(*au3Project);
+        for (auto au3Track : au3Tracks) {
+            au3Track->SetSelected(au3Track == static_cast<::Track*>(track));
+        }
+    }
     selectionController()->resetSelectedClips();
     selectionController()->setSelectedTracks({ trackId });
     selectionController()->setDataSelectedStartTime(anchorSec, true);
-    selectionController()->setDataSelectedEndTime(anchorSec + endSec, true);
+    selectionController()->setDataSelectedEndTime(regionEndSec, true);
 
     MidiRenderQueue::Set(std::move(renderNotes));
     const EffectId effectIdString = EffectId::fromStdString(effectId);

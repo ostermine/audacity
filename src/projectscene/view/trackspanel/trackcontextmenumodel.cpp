@@ -6,6 +6,13 @@
 
 #include "global/async/async.h"
 
+#include "au3-realtime-effects/RealtimeEffectList.h"
+#include "au3-realtime-effects/RealtimeEffectState.h"
+#include "au3-wave-track/MidiInstrument.h"
+#include "au3-wave-track/WaveTrack.h"
+#include "au3wrap/internal/domaccessor.h"
+#include "au3wrap/au3types.h"
+
 using namespace au::projectscene;
 using namespace muse::uicomponents;
 using namespace muse::actions;
@@ -114,6 +121,75 @@ MenuItemList TrackContextMenuModel::makeLabelTrackItems()
     };
 }
 
+MenuItemList TrackContextMenuModel::makeMidiTrackItems()
+{
+    MenuItemList items;
+
+    if (MenuItem* pianoRollItem = makeMenuItem("pianoroll-open")) {
+        // the handler only reads the track id part of the key
+        pianoRollItem->setArgs(ActionData::make_arg1<trackedit::ClipKey>(trackedit::ClipKey(m_trackId, 0)));
+        items << pianoRollItem;
+    }
+
+    // current instrument binding lives on the au3 track
+    std::string currentEffectId;
+    bool liveEnabled = false;
+    if (const auto project = globalContext()->currentProject()) {
+        const auto au3Project = reinterpret_cast<au::au3::Au3Project*>(project->au3ProjectPtr());
+        if (const WaveTrack* track = au::au3::DomAccessor::findWaveTrack(*au3Project, ::TrackId(m_trackId))) {
+            currentEffectId = MidiInstrument::Get(*track).EffectId();
+            if (!currentEffectId.empty()) {
+                auto& list = RealtimeEffectList::Get(*track);
+                for (size_t i = 0, count = list.GetStatesCount(); i < count; ++i) {
+                    const auto state = list.GetStateAt(i);
+                    if (state && state->GetID().ToStdString() == currentEffectId) {
+                        liveEnabled = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    MenuItemList instrumentItems;
+    for (const effects::EffectMeta& meta : effectsProvider()->effectMetaList()) {
+        if (meta.type != effects::EffectType::Generator || meta.family != effects::EffectFamily::VST3) {
+            continue;
+        }
+        MenuItem* item = makeMenuItem("midi-set-instrument", muse::TranslatableString::untranslatable(meta.title));
+        if (!item) {
+            continue;
+        }
+        item->setId(QString::fromStdString("midi-instrument-" + meta.id.toStdString()));
+        item->setArgs(ActionData::make_arg2<trackedit::TrackId, std::string>(m_trackId, meta.id.toStdString()));
+        auto state = item->state();
+        state.checked = !currentEffectId.empty() && meta.id.toStdString() == currentEffectId;
+        item->setState(state);
+        instrumentItems << item;
+    }
+    items << makeMenu(muse::TranslatableString(TRANSLATABLE_STRING_CONTEXT, "Instrument"), instrumentItems, "midiInstrumentMenu");
+
+    items << makeItemWithArg("midi-open-instrument-ui");
+
+    if (MenuItem* liveItem = makeItemWithArg("midi-toggle-live")) {
+        auto state = liveItem->state();
+        state.checked = liveEnabled;
+        liveItem->setState(state);
+        items << liveItem;
+    }
+
+    items << makeItemWithArg("midi-render");
+    items << makeSeparator();
+    items << makeItemWithArg("track-rename");
+    items << makeItemWithArg("track-duplicate");
+    items << makeItemWithArg("track-delete");
+    items << makeSeparator();
+    items << makeMenu(muse::TranslatableString(TRANSLATABLE_STRING_CONTEXT, "Move track"), makeTrackMoveItems());
+    items << makeMenu(muse::TranslatableString(TRANSLATABLE_STRING_CONTEXT, "Track color"), makeTrackColorItems(), TRACK_COLOR_MENU_ID);
+
+    return items;
+}
+
 void TrackContextMenuModel::load()
 {
     AbstractMenuModel::load();
@@ -152,6 +228,9 @@ void TrackContextMenuModel::load()
         break;
     case trackedit::TrackType::Label:
         setItems(makeLabelTrackItems());
+        break;
+    case trackedit::TrackType::Midi:
+        setItems(makeMidiTrackItems());
         break;
     default:
         return;
