@@ -86,6 +86,13 @@ static UiActionList STATIC_ACTIONS = {
              au::context::CTX_PROJECT_OPENED,
              TranslatableString("action", "Instrument settings…"),
              TranslatableString("action", "Open the instrument UI, preview and re-render")
+             ),
+    UiAction("midi-toggle-live",
+             au::context::UiCtxProjectOpened,
+             au::context::CTX_PROJECT_OPENED,
+             TranslatableString("action", "Live MIDI playback"),
+             TranslatableString("action", "Play notes through the instrument in real time, without rendering"),
+             Checkable::Yes
              )
 };
 

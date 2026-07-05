@@ -912,21 +912,24 @@ size_t VST3Wrapper::Process(const float* const* inBlock, float* const* outBlock,
                                                                  ));
 
     mInputEvents.clear();
-    if (!mPendingEvents.empty() && data.numSamples > 0) {
-        const auto blockEnd = mProcessedSamples + data.numSamples;
-        for (auto& e : mPendingEvents) {
-            if (e.time >= mProcessedSamples && e.time < blockEnd) {
-                e.event.sampleOffset = static_cast<int32>(e.time - mProcessedSamples);
-                mInputEvents.addEvent(e.event);
+    {
+        std::lock_guard<std::mutex> lock(mPendingEventsMutex);
+        if (!mPendingEvents.empty() && data.numSamples > 0) {
+            const auto blockEnd = mProcessedSamples + data.numSamples;
+            for (auto& e : mPendingEvents) {
+                if (e.time >= mProcessedSamples && e.time < blockEnd) {
+                    e.event.sampleOffset = static_cast<int32>(e.time - mProcessedSamples);
+                    mInputEvents.addEvent(e.event);
+                }
             }
+            mPendingEvents.erase(
+                std::remove_if(mPendingEvents.begin(), mPendingEvents.end(),
+                               [blockEnd](const PendingEvent& e) { return e.time < blockEnd; }),
+                mPendingEvents.end());
         }
-        mPendingEvents.erase(
-            std::remove_if(mPendingEvents.begin(), mPendingEvents.end(),
-                           [blockEnd](const PendingEvent& e) { return e.time < blockEnd; }),
-            mPendingEvents.end());
+        mProcessContext.projectTimeSamples = mProcessedSamples;
     }
     data.inputEvents = &mInputEvents;
-    mProcessContext.projectTimeSamples = mProcessedSamples;
 
     data.numInputs = inBlock == nullptr ? 0 : mEffectComponent->getBusCount(Vst::kAudio, Vst::kInput);
     data.numOutputs = outBlock == nullptr ? 0 : mEffectComponent->getBusCount(Vst::kAudio, Vst::kOutput);
@@ -980,6 +983,7 @@ size_t VST3Wrapper::Process(const float* const* inBlock, float* const* outBlock,
     const auto processResult = mAudioProcessor->process(data);
 
     if (processResult == kResultOk) {
+        std::lock_guard<std::mutex> lock(mPendingEventsMutex);
         mProcessedSamples += data.numSamples;
         return data.numSamples;
     }
@@ -1004,7 +1008,6 @@ void VST3Wrapper::QueueNoteEvent(Steinberg::int64 sampleTime, Steinberg::int64 s
     noteOn.noteOn.velocity = velocity;
     noteOn.noteOn.length = 0;
     noteOn.noteOn.noteId = -1;
-    mPendingEvents.push_back({ sampleTime, noteOn });
 
     Vst::Event noteOff { };
     noteOff.busIndex = 0;
@@ -1014,7 +1017,46 @@ void VST3Wrapper::QueueNoteEvent(Steinberg::int64 sampleTime, Steinberg::int64 s
     noteOff.noteOff.tuning = 0.f;
     noteOff.noteOff.velocity = 0.f;
     noteOff.noteOff.noteId = -1;
+
+    std::lock_guard<std::mutex> lock(mPendingEventsMutex);
+    mPendingEvents.push_back({ sampleTime, noteOn });
     mPendingEvents.push_back({ sampleTime + sampleDuration, noteOff });
+}
+
+void VST3Wrapper::ResetNoteEvents()
+{
+    std::lock_guard<std::mutex> lock(mPendingEventsMutex);
+    mPendingEvents.clear();
+    mProcessedSamples = 0;
+}
+
+void VST3Wrapper::QueueNoteEventNow(Steinberg::int64 sampleDuration, Steinberg::int16 pitch, float velocity)
+{
+    using namespace Steinberg;
+
+    Vst::Event noteOn { };
+    noteOn.busIndex = 0;
+    noteOn.type = Vst::Event::kNoteOnEvent;
+    noteOn.noteOn.channel = 0;
+    noteOn.noteOn.pitch = pitch;
+    noteOn.noteOn.tuning = 0.f;
+    noteOn.noteOn.velocity = velocity;
+    noteOn.noteOn.length = 0;
+    noteOn.noteOn.noteId = -1;
+
+    Vst::Event noteOff { };
+    noteOff.busIndex = 0;
+    noteOff.type = Vst::Event::kNoteOffEvent;
+    noteOff.noteOff.channel = 0;
+    noteOff.noteOff.pitch = pitch;
+    noteOff.noteOff.tuning = 0.f;
+    noteOff.noteOff.velocity = 0.f;
+    noteOff.noteOff.noteId = -1;
+
+    // "now" = the next processed block
+    std::lock_guard<std::mutex> lock(mPendingEventsMutex);
+    mPendingEvents.push_back({ mProcessedSamples, noteOn });
+    mPendingEvents.push_back({ mProcessedSamples + sampleDuration, noteOff });
 }
 
 void VST3Wrapper::SuspendProcessing()

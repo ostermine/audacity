@@ -9,6 +9,8 @@
 #include "global/realfn.h"
 #include "ui/view/iconcodes.h"
 
+#include "au3-realtime-effects/RealtimeEffectList.h"
+#include "au3-realtime-effects/RealtimeEffectState.h"
 #include "au3-wave-track/MidiInstrument.h"
 #include "au3-wave-track/WaveTrack.h"
 #include "au3wrap/internal/domaccessor.h"
@@ -91,6 +93,14 @@ void ClipContextMenuModel::load()
             if (MenuItem* instrumentUiItem = makeMenuItem("midi-open-instrument-ui")) {
                 instrumentUiItem->setArgs(ActionData::make_arg1<trackedit::TrackId>(m_clipKey.trackId()));
                 items << instrumentUiItem;
+            }
+
+            if (MenuItem* liveItem = makeMenuItem("midi-toggle-live")) {
+                liveItem->setArgs(ActionData::make_arg1<trackedit::TrackId>(m_clipKey.trackId()));
+                auto state = liveItem->state();
+                state.checked = isMidiLiveEnabled();
+                liveItem->setState(state);
+                items << liveItem;
             }
 
             if (MenuItem* renderItem = makeMenuItem("midi-render")) {
@@ -289,6 +299,31 @@ void ClipContextMenuModel::updateColorMenu()
     } else {
         colorMenu.setState(muse::ui::UiActionState::make_enabled());
     }
+}
+
+bool ClipContextMenuModel::isMidiLiveEnabled() const
+{
+    const auto project = globalContext()->currentProject();
+    if (!project) {
+        return false;
+    }
+    const auto au3Project = reinterpret_cast<au::au3::Au3Project*>(project->au3ProjectPtr());
+    WaveTrack* track = au::au3::DomAccessor::findWaveTrack(*au3Project, ::TrackId(m_clipKey.trackId()));
+    if (!track) {
+        return false;
+    }
+    const std::string& effectId = MidiInstrument::Get(*track).EffectId();
+    if (effectId.empty()) {
+        return false;
+    }
+    auto& list = RealtimeEffectList::Get(*track);
+    for (size_t i = 0, count = list.GetStatesCount(); i < count; ++i) {
+        const auto state = list.GetStateAt(i);
+        if (state && state->GetID().ToStdString() == effectId) {
+            return true;
+        }
+    }
+    return false;
 }
 
 MenuItem* ClipContextMenuModel::makeMidiInstrumentMenu()

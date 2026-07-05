@@ -31,6 +31,22 @@ EFFECTS_API void Set(std::vector<Note> notes);
 //! one render flow may initialize processing several times (preview, apply),
 //! so the render service clears the queue explicitly when done.
 EFFECTS_API const std::vector<Note>& Get();
+
+//! Implemented by instrument effect instances (e.g. VST3Instance) that can
+//! play notes live during realtime processing. Lets the AU4 live-MIDI
+//! scheduler feed notes without depending on plugin-format headers.
+class EFFECTS_API LiveMidiReceiver
+{
+public:
+    virtual ~LiveMidiReceiver() = default;
+
+    //! Positions in samples from the realtime stream start
+    virtual void QueueLiveNote(long long sampleTime, long long sampleDuration, int pitch, float velocity) = 0;
+    //! Plays in the next processed block (piano roll audition)
+    virtual void QueueLiveNoteNow(long long sampleDuration, int pitch, float velocity) = 0;
+    //! Drops queued notes and restarts the sample clock from 0
+    virtual void ResetLiveNotes() = 0;
+};
 }
 
 #endif // __AUDACITY_MIDI_RENDER_QUEUE__

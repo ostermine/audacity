@@ -45,6 +45,7 @@ private:
     void updateColorMenu();
 
     muse::uicomponents::MenuItem* makeMidiInstrumentMenu();
+    bool isMidiLiveEnabled() const;
 
     ClipKey m_clipKey;
     muse::actions::ActionCodeList m_colorChangeActionCodeList;

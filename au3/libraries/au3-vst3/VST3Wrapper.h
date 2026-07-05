@@ -1,5 +1,7 @@
 #pragma once
 
+#include <mutex>
+
 #include <pluginterfaces/base/smartpointer.h>
 #include <pluginterfaces/vst/ivstaudioprocessor.h>
 #include <pluginterfaces/vst/ivstevents.h>
@@ -122,8 +124,16 @@ public:
     bool HasEventInputBus() const;
 
     //!Queues a note to be delivered to the plugin during subsequent Process calls.
-    //!Positions are in samples, relative to the first Process call after Initialize
+    //!Positions are in samples, relative to the first Process call after Initialize.
+    //!Thread-safe: live MIDI queues from the main thread while audio runs
     void QueueNoteEvent(Steinberg::int64 sampleTime, Steinberg::int64 sampleDuration, Steinberg::int16 pitch, float velocity);
+
+    //!(AU4 DAW fork) drops queued notes and restarts the sample clock from 0;
+    //!used by live MIDI right before (re)scheduling notes at playback start
+    void ResetNoteEvents();
+
+    //!(AU4 DAW fork) plays a note in the next processed block (piano roll audition)
+    void QueueNoteEventNow(Steinberg::int64 sampleDuration, Steinberg::int16 pitch, float velocity);
 
     void SuspendProcessing();
     void ResumeProcessing();
@@ -177,4 +187,7 @@ private:
     std::vector<PendingEvent> mPendingEvents;
     Steinberg::Vst::EventList mInputEvents;
     Steinberg::int64 mProcessedSamples { 0 };
+    //(AU4 DAW fork) live MIDI queues notes from the main thread while the
+    //audio thread drains them in Process
+    std::mutex mPendingEventsMutex;
 };

@@ -2,6 +2,7 @@
 
 #include <public.sdk/source/vst/utility/uid.h>
 
+#include "au3-effects/MidiRenderQueue.h"
 #include "au3-effects/PerTrackEffect.h"
 
 namespace Steinberg {
@@ -26,7 +27,7 @@ class Module;
 
 class VST3Wrapper;
 
-class VST3_API VST3Instance : public PerTrackEffect::Instance
+class VST3_API VST3Instance : public PerTrackEffect::Instance, public MidiRenderQueue::LiveMidiReceiver
 {
     std::unique_ptr<VST3Wrapper> mWrapper;
 
@@ -64,6 +65,12 @@ public:
     size_t ProcessBlock(EffectSettings& settings, const float* const* inBlock, float* const* outBlock, size_t blockLen) override;
 
     VST3Wrapper& GetWrapper();
+
+    //!(AU4 DAW fork) live MIDI: fan out to this instance and all of its
+    //!realtime sub-processors
+    void QueueLiveNote(long long sampleTime, long long sampleDuration, int pitch, float velocity) override;
+    void QueueLiveNoteNow(long long sampleDuration, int pitch, float velocity) override;
+    void ResetLiveNotes() override;
 
     unsigned GetAudioOutCount() const override;
     unsigned GetAudioInCount() const override;

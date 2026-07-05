@@ -14,6 +14,9 @@
 #include "au3-components/EffectAutomationParameters.h"
 #include "au3-effects/MidiRenderQueue.h"
 #include "au3-numeric-formats/ProjectTimeSignature.h"
+#include "au3-project-rate/ProjectRate.h"
+#include "au3-realtime-effects/RealtimeEffectList.h"
+#include "au3-realtime-effects/RealtimeEffectState.h"
 #include "au3-wave-track/MidiInstrument.h"
 #include "au3-wave-track/MidiSequence.h"
 #include "au3-wave-track/WaveTrack.h"
@@ -47,6 +50,14 @@ void EffectsActionsController::init()
     frequencySelectionController()->frequencySelectionChanged().onReceive(this, [this](bool complete) {
         if (complete) {
             notifyAboutSpectralEffectsAvailability();
+        }
+    });
+
+    // live MIDI: (re)schedule the notes of live-enabled MIDI tracks into
+    // their realtime instrument instances whenever playback starts
+    playbackController()->isPlayingChanged().onNotify(this, [this]() {
+        if (playbackController()->isPlaying()) {
+            scheduleLiveMidiNotes();
         }
     });
 }
@@ -91,6 +102,8 @@ void EffectsActionsController::registerActions()
     dispatcher()->reg(this, "midi-set-instrument", this, &EffectsActionsController::setMidiInstrument);
     dispatcher()->reg(this, "midi-render", this, &EffectsActionsController::renderMidiTrack);
     dispatcher()->reg(this, "midi-open-instrument-ui", this, &EffectsActionsController::openMidiInstrumentUi);
+    dispatcher()->reg(this, "midi-toggle-live", this, &EffectsActionsController::toggleMidiLive);
+    dispatcher()->reg(this, "midi-audition-note", this, &EffectsActionsController::auditionMidiNote);
 
     m_uiActions->reload();
     uiActionsRegister()->unreg(m_uiActions);
@@ -288,6 +301,138 @@ void EffectsActionsController::openMidiInstrumentUi(const muse::actions::ActionD
     // user listen while tweaking, OK applies and remembers the settings
     // (EffectManager keeps them per plugin, so silent renders reuse them)
     doRenderMidiTrack(args.arg<trackedit::TrackId>(0), true);
+}
+
+namespace {
+//! The realtime instrument state on the track's effect stack, if live mode is on
+std::shared_ptr<RealtimeEffectState> findLiveInstrumentState(WaveTrack& track)
+{
+    const std::string& effectId = MidiInstrument::Get(track).EffectId();
+    if (effectId.empty()) {
+        return nullptr;
+    }
+    auto& list = RealtimeEffectList::Get(track);
+    for (size_t i = 0, count = list.GetStatesCount(); i < count; ++i) {
+        auto state = list.GetStateAt(i);
+        if (state && state->GetID().ToStdString() == effectId) {
+            return state;
+        }
+    }
+    return nullptr;
+}
+}
+
+void EffectsActionsController::toggleMidiLive(const muse::actions::ActionData& args)
+{
+    IF_ASSERT_FAILED(args.count() == 1) {
+        return;
+    }
+    const trackedit::TrackId trackId = args.arg<trackedit::TrackId>(0);
+
+    const auto project = globalContext()->currentProject();
+    if (!project) {
+        return;
+    }
+    const auto au3Project = reinterpret_cast<au::au3::Au3Project*>(project->au3ProjectPtr());
+    WaveTrack* track = au::au3::DomAccessor::findWaveTrack(*au3Project, ::TrackId(trackId));
+    if (!track || !track->IsMidi()) {
+        return;
+    }
+
+    const std::string& effectId = MidiInstrument::Get(*track).EffectId();
+    if (effectId.empty()) {
+        interactive()->error(muse::trc("effects", "No instrument assigned"),
+                             muse::trc("effects", "Right-click the MIDI clip and pick an instrument first."));
+        return;
+    }
+
+    if (const auto state = findLiveInstrumentState(*track)) {
+        realtimeEffectService()->removeRealtimeEffect(trackId, state);
+    } else {
+        realtimeEffectService()->addRealtimeEffect(trackId, EffectId::fromStdString(effectId));
+        if (playbackController()->isPlaying()) {
+            scheduleLiveMidiNotes();
+        }
+    }
+}
+
+void EffectsActionsController::auditionMidiNote(const muse::actions::ActionData& args)
+{
+    IF_ASSERT_FAILED(args.count() == 2) {
+        return;
+    }
+    const trackedit::TrackId trackId = args.arg<trackedit::TrackId>(0);
+    const int pitch = args.arg<int>(1);
+
+    const auto project = globalContext()->currentProject();
+    if (!project) {
+        return;
+    }
+    const auto au3Project = reinterpret_cast<au::au3::Au3Project*>(project->au3ProjectPtr());
+    WaveTrack* track = au::au3::DomAccessor::findWaveTrack(*au3Project, ::TrackId(trackId));
+    if (!track || !track->IsMidi()) {
+        return;
+    }
+
+    // audible only while the realtime chain is processing (live mode + playback)
+    const auto state = findLiveInstrumentState(*track);
+    if (!state) {
+        return;
+    }
+    const auto receiver = std::dynamic_pointer_cast<MidiRenderQueue::LiveMidiReceiver>(state->GetInstance());
+    if (!receiver) {
+        return;
+    }
+
+    const double rate = ProjectRate::Get(*au3Project).GetRate();
+    receiver->QueueLiveNoteNow(static_cast<long long>(0.4 * rate), std::clamp(pitch, 0, 127), 0.8f);
+}
+
+void EffectsActionsController::scheduleLiveMidiNotes()
+{
+    const auto project = globalContext()->currentProject();
+    if (!project) {
+        return;
+    }
+    const auto au3Project = reinterpret_cast<au::au3::Au3Project*>(project->au3ProjectPtr());
+    const double rate = ProjectRate::Get(*au3Project).GetRate();
+    const double quarterSec = ProjectTimeSignature::Get(*au3Project).GetQuarterDuration();
+    const double playStartSec = globalContext()->playbackState()->playbackPosition();
+
+    auto& tracks = au::au3::Au3TrackList::Get(*au3Project);
+    for (auto au3Track : tracks.Any<WaveTrack>()) {
+        if (!au3Track->IsMidi()) {
+            continue;
+        }
+        const auto state = findLiveInstrumentState(*au3Track);
+        if (!state) {
+            continue;
+        }
+        const auto receiver = std::dynamic_pointer_cast<MidiRenderQueue::LiveMidiReceiver>(state->GetInstance());
+        if (!receiver) {
+            continue;
+        }
+
+        double anchorSec = 0.0;
+        for (const auto& interval : au3Track->Intervals()) {
+            anchorSec = interval->GetPlayStartTime();
+            break;
+        }
+
+        receiver->ResetLiveNotes();
+        for (const MidiNote& note : MidiSequence::Get(*au3Track).Notes()) {
+            const double absSec = anchorSec + note.startBeats * quarterSec;
+            const double durSec = note.lengthBeats * quarterSec;
+            if (absSec + durSec <= playStartSec) {
+                continue; // already in the past
+            }
+            const auto sampleTime = static_cast<long long>(
+                std::max(0.0, (absSec - playStartSec) * rate));
+            receiver->QueueLiveNote(sampleTime,
+                                    static_cast<long long>(durSec * rate),
+                                    note.pitch, note.velocity);
+        }
+    }
 }
 
 bool EffectsActionsController::doRenderMidiTrack(const trackedit::TrackId& trackId, bool withDialog)

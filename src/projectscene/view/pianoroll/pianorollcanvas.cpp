@@ -372,6 +372,12 @@ void PianoRollCanvas::mousePressEvent(QMouseEvent* event)
     const double y = event->position().y();
 
     if (x <= KEYBOARD_W) {
+        // audition the key through the live instrument (live mode + playback)
+        if (event->button() == Qt::LeftButton && !m_trackId.isEmpty()) {
+            dispatcher()->dispatch("midi-audition-note",
+                                   muse::actions::ActionData::make_arg2<int64_t, int>(
+                                       m_trackId.toLongLong(), std::clamp(yToPitch(y), 0, 127)));
+        }
         event->accept();
         return;
     }

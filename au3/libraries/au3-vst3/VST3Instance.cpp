@@ -109,6 +109,32 @@ bool VST3Instance::RealtimeProcessEnd(EffectSettings& settings) noexcept
     return true;
 }
 
+void VST3Instance::QueueLiveNote(long long sampleTime, long long sampleDuration, int pitch, float velocity)
+{
+    const auto p = static_cast<Steinberg::int16>(pitch);
+    mWrapper->QueueNoteEvent(sampleTime, sampleDuration, p, velocity);
+    for (auto& processor : mProcessors) {
+        processor->mWrapper->QueueNoteEvent(sampleTime, sampleDuration, p, velocity);
+    }
+}
+
+void VST3Instance::ResetLiveNotes()
+{
+    mWrapper->ResetNoteEvents();
+    for (auto& processor : mProcessors) {
+        processor->mWrapper->ResetNoteEvents();
+    }
+}
+
+void VST3Instance::QueueLiveNoteNow(long long sampleDuration, int pitch, float velocity)
+{
+    const auto p = static_cast<Steinberg::int16>(pitch);
+    mWrapper->QueueNoteEventNow(sampleDuration, p, velocity);
+    for (auto& processor : mProcessors) {
+        processor->mWrapper->QueueNoteEventNow(sampleDuration, p, velocity);
+    }
+}
+
 bool VST3Instance::RealtimeProcessStart(MessagePackage& package)
 {
     auto& settings = package.settings;

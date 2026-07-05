@@ -24,6 +24,7 @@
 #include "../ieffectpresetsscenario.h"
 #include "../ieffectsconfiguration.h"
 #include "../ieffectinstancesregister.h"
+#include "../irealtimeeffectservice.h"
 
 namespace au::effects {
 class EffectsUiActions;
@@ -44,6 +45,7 @@ class EffectsActionsController : public muse::actions::Actionable, public muse::
     muse::ContextInject<au::context::IGlobalContext> globalContext{ this };
     muse::ContextInject<au::trackedit::ISelectionController> selectionController{ this };
     muse::ContextInject<au::trackedit::IProjectHistory> projectHistory{ this };
+    muse::ContextInject<IRealtimeEffectService> realtimeEffectService{ this };
 
 public:
     EffectsActionsController(const muse::modularity::ContextPtr& ctx)
@@ -73,7 +75,10 @@ private:
     void setMidiInstrument(const muse::actions::ActionData& args);
     void renderMidiTrack(const muse::actions::ActionData& args);
     void openMidiInstrumentUi(const muse::actions::ActionData& args);
+    void toggleMidiLive(const muse::actions::ActionData& args);
+    void auditionMidiNote(const muse::actions::ActionData& args);
     bool doRenderMidiTrack(const trackedit::TrackId& trackId, bool withDialog = false);
+    void scheduleLiveMidiNotes();
 
     std::shared_ptr<EffectsUiActions> m_uiActions;
     muse::async::Channel<muse::actions::ActionCodeList> m_canReceiveActionsChanged;
