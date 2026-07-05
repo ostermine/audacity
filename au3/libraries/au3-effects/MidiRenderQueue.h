@@ -27,8 +27,10 @@ struct Note {
 
 EFFECTS_API void Set(std::vector<Note> notes);
 
-//! Takes (and clears) the pending notes; empty if nothing was queued
-EFFECTS_API std::vector<Note> Take();
+//! Pending notes; empty if nothing was queued. NOT cleared by reading:
+//! one render flow may initialize processing several times (preview, apply),
+//! so the render service clears the queue explicitly when done.
+EFFECTS_API const std::vector<Note>& Get();
 }
 
 #endif // __AUDACITY_MIDI_RENDER_QUEUE__

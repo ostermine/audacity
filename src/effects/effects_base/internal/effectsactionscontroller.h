@@ -72,7 +72,8 @@ private:
 
     void setMidiInstrument(const muse::actions::ActionData& args);
     void renderMidiTrack(const muse::actions::ActionData& args);
-    bool doRenderMidiTrack(const trackedit::TrackId& trackId);
+    void openMidiInstrumentUi(const muse::actions::ActionData& args);
+    bool doRenderMidiTrack(const trackedit::TrackId& trackId, bool withDialog = false);
 
     std::shared_ptr<EffectsUiActions> m_uiActions;
     muse::async::Channel<muse::actions::ActionCodeList> m_canReceiveActionsChanged;

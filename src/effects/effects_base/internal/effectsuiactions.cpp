@@ -80,6 +80,12 @@ static UiActionList STATIC_ACTIONS = {
              au::context::CTX_PROJECT_OPENED,
              TranslatableString("action", "Render MIDI audio"),
              TranslatableString("action", "Render notes through the assigned instrument")
+             ),
+    UiAction("midi-open-instrument-ui",
+             au::context::UiCtxProjectOpened,
+             au::context::CTX_PROJECT_OPENED,
+             TranslatableString("action", "Instrument settings…"),
+             TranslatableString("action", "Open the instrument UI, preview and re-render")
              )
 };
 

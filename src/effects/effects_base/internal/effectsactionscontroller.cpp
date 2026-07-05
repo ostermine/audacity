@@ -90,6 +90,7 @@ void EffectsActionsController::registerActions()
     // query-actions would need a UiAction per full query string
     dispatcher()->reg(this, "midi-set-instrument", this, &EffectsActionsController::setMidiInstrument);
     dispatcher()->reg(this, "midi-render", this, &EffectsActionsController::renderMidiTrack);
+    dispatcher()->reg(this, "midi-open-instrument-ui", this, &EffectsActionsController::openMidiInstrumentUi);
 
     m_uiActions->reload();
     uiActionsRegister()->unreg(m_uiActions);
@@ -277,7 +278,19 @@ void EffectsActionsController::renderMidiTrack(const muse::actions::ActionData& 
     doRenderMidiTrack(args.arg<trackedit::TrackId>(0));
 }
 
-bool EffectsActionsController::doRenderMidiTrack(const trackedit::TrackId& trackId)
+void EffectsActionsController::openMidiInstrumentUi(const muse::actions::ActionData& args)
+{
+    IF_ASSERT_FAILED(args.count() == 1) {
+        return;
+    }
+
+    // render WITH the settings dialog: the vendor UI opens, Preview lets the
+    // user listen while tweaking, OK applies and remembers the settings
+    // (EffectManager keeps them per plugin, so silent renders reuse them)
+    doRenderMidiTrack(args.arg<trackedit::TrackId>(0), true);
+}
+
+bool EffectsActionsController::doRenderMidiTrack(const trackedit::TrackId& trackId, bool withDialog)
 {
     const auto project = globalContext()->currentProject();
     if (!project) {
@@ -335,9 +348,13 @@ bool EffectsActionsController::doRenderMidiTrack(const trackedit::TrackId& track
     selectionController()->setDataSelectedEndTime(anchorSec + endSec, true);
 
     MidiRenderQueue::Set(std::move(renderNotes));
-    const muse::Ret ret = effectExecutionScenario()->performEffect(
-        EffectId::fromStdString(effectId), std::string());
-    // don't leak notes into a later manual Generate if the effect failed early
+    const EffectId effectIdString = EffectId::fromStdString(effectId);
+    // the single-argument overload shows the settings dialog (vendor UI),
+    // the params overload applies silently with the remembered settings
+    const muse::Ret ret = withDialog
+                          ? effectExecutionScenario()->performEffect(effectIdString)
+                          : effectExecutionScenario()->performEffect(effectIdString, std::string());
+    // don't leak notes into a later manual Generate
     MidiRenderQueue::Set({});
 
     if (!ret) {

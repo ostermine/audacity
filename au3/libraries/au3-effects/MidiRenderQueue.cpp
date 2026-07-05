@@ -16,9 +16,7 @@ void MidiRenderQueue::Set(std::vector<Note> notes)
     sPendingNotes = std::move(notes);
 }
 
-std::vector<MidiRenderQueue::Note> MidiRenderQueue::Take()
+const std::vector<MidiRenderQueue::Note>& MidiRenderQueue::Get()
 {
-    std::vector<Note> result = std::move(sPendingNotes);
-    sPendingNotes.clear();
-    return result;
+    return sPendingNotes;
 }

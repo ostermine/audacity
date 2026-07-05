@@ -50,6 +50,7 @@ public:
     Q_INVOKABLE void zoomIn();
     Q_INVOKABLE void zoomOut();
     Q_INVOKABLE void requestRender();
+    Q_INVOKABLE void requestInstrumentUi();
 
     void paint(QPainter* painter) override;
 

@@ -163,7 +163,7 @@ bool VST3Instance::ProcessInitialize(EffectSettings& settings, double sampleRate
         auto& effect = static_cast<const PerTrackEffect&>(mProcessor);
         if (effect.GetType() == EffectTypeGenerate && mWrapper->HasEventInputBus()) {
             //(AU4 DAW fork) real notes of a MIDI track, if a render was requested
-            const std::vector<MidiRenderQueue::Note> notes = MidiRenderQueue::Take();
+            const std::vector<MidiRenderQueue::Note>& notes = MidiRenderQueue::Get();
             if (!notes.empty()) {
                 for (const MidiRenderQueue::Note& note : notes) {
                     mWrapper->QueueNoteEvent(

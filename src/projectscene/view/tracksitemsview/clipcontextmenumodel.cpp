@@ -88,6 +88,11 @@ void ClipContextMenuModel::load()
             items << makeItemWithArg("pianoroll-open");
             items << makeMidiInstrumentMenu();
 
+            if (MenuItem* instrumentUiItem = makeMenuItem("midi-open-instrument-ui")) {
+                instrumentUiItem->setArgs(ActionData::make_arg1<trackedit::TrackId>(m_clipKey.trackId()));
+                items << instrumentUiItem;
+            }
+
             if (MenuItem* renderItem = makeMenuItem("midi-render")) {
                 renderItem->setArgs(ActionData::make_arg1<trackedit::TrackId>(m_clipKey.trackId()));
                 items << renderItem;

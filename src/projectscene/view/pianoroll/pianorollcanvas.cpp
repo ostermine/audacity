@@ -152,6 +152,17 @@ void PianoRollCanvas::requestRender()
                            muse::actions::ActionData::make_arg1<int64_t>(m_trackId.toLongLong()));
 }
 
+void PianoRollCanvas::requestInstrumentUi()
+{
+    if (m_trackId.isEmpty()) {
+        return;
+    }
+
+    m_renderDebounce.stop(); // the dialog flow renders by itself
+    dispatcher()->dispatch("midi-open-instrument-ui",
+                           muse::actions::ActionData::make_arg1<int64_t>(m_trackId.toLongLong()));
+}
+
 WaveTrack* PianoRollCanvas::waveTrack() const
 {
     const auto project = globalContext()->currentProject();

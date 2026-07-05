@@ -66,6 +66,13 @@ StyledDialogView {
             }
 
             FlatButton {
+                icon: IconCode.EYE_OPEN
+                transparent: true
+                toolTipTitle: qsTrc("projectscene", "Instrument settings")
+                onClicked: canvas.requestInstrumentUi()
+            }
+
+            FlatButton {
                 text: qsTrc("projectscene", "Render")
                 accentButton: true
                 onClicked: canvas.requestRender()
