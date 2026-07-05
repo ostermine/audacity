@@ -68,7 +68,29 @@ Preview+Apply = несколько ProcessInitialize; сервис чистит 
 Вход: пункт «Instrument settings…» в меню клипа + глазик (EYE_OPEN) в piano roll.
 Ограничение: настройки per-PLUGIN, не per-track (два MIDI-трека с одним синтом делят пресет).
 
-### (1)+(2) Реалтайм и игра мышкой — ДИЗАЙН (не начато)
+### (1)+(2) Реалтайм и игра мышкой — V1 РЕАЛИЗОВАН (коммит 00ebfad68), ждёт проверки
+- Тумблер «Live MIDI playback» в меню MIDI-клипа: вешает инструмент realtime-эффектом
+  на трек (`IRealtimeEffectService::addRealtimeEffect`; повторный клик снимает; виден в
+  панели эффектов трека; сериализуется с проектом).
+- Планирование: подписка на `IPlaybackController::isPlayingChanged` в EffectsActionsController;
+  на старте плея для каждого MIDI-трека с live-инструментом: `ResetLiveNotes()` (сброс
+  сэмпл-часов в 0 = старт стрима) + `QueueLiveNote((absSec−playStartSec)·rate, …)`.
+  Сброс часов на каждый старт также чинит паузу/резюм и повторный плей.
+- Развязка от VST3 SDK: интерфейс `MidiRenderQueue::LiveMidiReceiver` (au3-effects),
+  VST3Instance его реализует (fan-out в реалтайм-подынстансы mProcessors);
+  effects_base делает dynamic_pointer_cast интерфейса — БЕЗ инклюда VST3Instance.h
+  (у effects_base нет инклюд-путей VST3 SDK — C1083 на uid.h).
+- Потокобезопасность: mPendingEventsMutex в VST3Wrapper (Queue/Reset с main-треда,
+  дрейн в Process на аудио-треде; mProcessedSamples тоже под мьютексом).
+- Игра мышкой: клик по клавиатуре piano roll → action `midi-audition-note` →
+  `QueueLiveNoteNow` (time = mProcessedSamples → ближайший блок). Слышно ТОЛЬКО при
+  включённом Live и активном стриме (реалтайм-цепочка процессит только при плейбеке).
+- Известные ограничения v1: сик во время плейбека не пересинхронизирует ноты (заряжаются
+  на старте); при Live-режиме отрендеренный клип идёт на ВХОД синта (VSTi обычно
+  игнорируют вход — если плагин пропускает вход насквозь, будет дубль звука);
+  луп-регион не поддержан.
+
+### Старый дизайн-набросок (для истории)
 Путь: инструмент как REALTIME-эффект на MIDI-треке (RealtimeEffectList / IRealtimeEffectService
 в effects_base) — даёт постоянный живой инстанс с аудио-путём в выход.
 - Проигрывание: на старте плейбека закинуть в VST3Wrapper очередь нот со сдвигом
