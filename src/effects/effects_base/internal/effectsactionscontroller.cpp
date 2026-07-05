@@ -8,6 +8,8 @@
 
 #include <algorithm>
 
+#include <QTimer>
+
 #include "spectrogram/spectrogramtypes.h"
 #include "wx/string.h"
 
@@ -54,10 +56,18 @@ void EffectsActionsController::init()
     });
 
     // live MIDI: (re)schedule the notes of live-enabled MIDI tracks into
-    // their realtime instrument instances whenever playback starts
+    // their realtime instrument instances whenever playback starts.
+    // Deferred: the audio engine (re)initializes the realtime instances at
+    // stream start, which clears their note queues and creates the realtime
+    // sub-processors - scheduling instantly would be wiped out. The schedule
+    // uses the CURRENT playback position, so the delay does not skew timing.
     playbackController()->isPlayingChanged().onNotify(this, [this]() {
         if (playbackController()->isPlaying()) {
-            scheduleLiveMidiNotes();
+            QTimer::singleShot(300, [this]() {
+                if (playbackController()->isPlaying()) {
+                    scheduleLiveMidiNotes();
+                }
+            });
         }
     });
 }
