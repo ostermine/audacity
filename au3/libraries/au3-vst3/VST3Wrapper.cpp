@@ -1061,10 +1061,14 @@ void VST3Wrapper::QueueNoteEventNow(Steinberg::int64 sampleDuration, Steinberg::
     noteOff.noteOff.velocity = 0.f;
     noteOff.noteOff.noteId = -1;
 
-    // "now" = the next processed block
+    // a bit into the future: the audio thread may already be past the exact
+    // "now" sample when the event lands, and past events are dropped silently
+    constexpr Steinberg::int64 safetyOffset = 2048;
+
     std::lock_guard<std::mutex> lock(mPendingEventsMutex);
-    mPendingEvents.push_back({ mProcessedSamples, noteOn });
-    mPendingEvents.push_back({ mProcessedSamples + sampleDuration, noteOff });
+    const auto startTime = mProcessedSamples + safetyOffset;
+    mPendingEvents.push_back({ startTime, noteOn });
+    mPendingEvents.push_back({ startTime + sampleDuration, noteOff });
 }
 
 void VST3Wrapper::SuspendProcessing()
