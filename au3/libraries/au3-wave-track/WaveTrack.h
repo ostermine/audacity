@@ -331,6 +331,12 @@ public:
     float GetPan() const;
     void SetPan(float newPan);
 
+    //! Whether this wave track hosts MIDI note data (rendered to audio).
+    //! The audio content is an ordinary waveform; this flag only changes
+    //! how the track is presented and edited (piano roll / step sequencer).
+    bool IsMidi() const;
+    void SetIsMidi(bool value);
+
     //! Takes volume and pan into account
     float GetChannelVolume(int channel) const override;
 

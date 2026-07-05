@@ -111,6 +111,7 @@ int WaveTrackItem::channelCount() const
 {
     switch (trackType()) {
     case trackedit::TrackType::Mono:
+    case trackedit::TrackType::Midi:
         return 1;
     case trackedit::TrackType::Stereo:
         return 2;

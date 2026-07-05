@@ -12,6 +12,8 @@
 #include "au3-wave-track/WaveTrackUtilities.h"
 #include "au3-wave-track/WaveTrack.h"
 #include "au3-wave-track/WaveClip.h"
+#include "au3-wave-track/MidiSequence.h"
+#include "au3-numeric-formats/ProjectTimeSignature.h"
 #include "au3-label-track/LabelTrack.h"
 #include "au3-project-rate/ProjectRate.h"
 #include "au3-project-rate/QualitySettings.h"
@@ -702,6 +704,50 @@ bool Au3TracksInteraction::newStereoTrack()
     trackNavigationController()->setFocusedTrack(trackId);
 
     projectHistory()->pushHistoryState("Created new stereo track", "New Stereo Track");
+    return true;
+}
+
+bool Au3TracksInteraction::newMidiTrack()
+{
+    auto& tracks = Au3TrackList::Get(projectRef());
+    const auto track = utils::appendWaveTrack(tracks, 1);
+    track->SetIsMidi(true);
+    track->SetName(tracks.MakeUniqueTrackName(wxT("MIDI Track")));
+
+    // TODO stage 2 (piano roll): notes are drawn by the user; until then seed
+    // a test pattern (C-major arpeggio, 2 bars) so the model, serialization
+    // and clip preview can be exercised
+    {
+        std::vector<MidiNote> notes;
+        static constexpr int arpeggio[] = { 60, 64, 67, 72, 67, 64, 60, 64 };
+        double beat = 0.0;
+        for (int pitch : arpeggio) {
+            MidiNote note;
+            note.startBeats = beat;
+            note.lengthBeats = 1.0;
+            note.pitch = pitch;
+            note.velocity = 0.8f;
+            notes.push_back(note);
+            beat += 1.0;
+        }
+        MidiSequence::Get(*track).SetNotes(std::move(notes));
+
+        // A silent clip acts as the visual container of the notes on the
+        // timeline (and later as the render cache of the VSTi output)
+        const double quarterSec = ProjectTimeSignature::Get(projectRef()).GetQuarterDuration();
+        const double lenSec = MidiSequence::Get(*track).EndBeats() * quarterSec;
+        if (lenSec > 0) {
+            track->InsertSilence(0.0, lenSec);
+        }
+    }
+
+    const auto prj = globalContext()->currentTrackeditProject();
+    prj->notifyAboutTrackAdded(DomConverter::track(track));
+
+    selectionController()->setSelectedTracks({ track->GetId() });
+    trackNavigationController()->setFocusedTrack(track->GetId());
+
+    projectHistory()->pushHistoryState("Created new MIDI track", "New MIDI Track");
     return true;
 }
 

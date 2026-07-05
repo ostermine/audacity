@@ -889,6 +889,21 @@ Rectangle {
                     }
                 }
 
+                MidiNotesView {
+                    id: midiNotesView
+
+                    anchors.fill: parent
+                    anchors.topMargin: 2
+                    anchors.bottomMargin: 2
+
+                    visible: midiNotesView.isMidi
+
+                    context: root.context
+                    clipKey: root.clipKey
+                    clipTime: root.clipTime
+                    noteColor: ui.theme.fontPrimaryColor
+                }
+
                 ChannelSplitter {
                     id: waveChannelSplitter
 

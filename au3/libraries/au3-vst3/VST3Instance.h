@@ -75,5 +75,9 @@ public:
     Steinberg::IPtr<Steinberg::Vst::IComponent> effectComponent() const;
 
 private:
+    //!Queues a placeholder note pattern for instruments rendered via the
+    //!generator pipeline, until MIDI tracks provide real note data
+    void QueueDefaultNotePattern(double duration, double sampleRate);
+
     size_t m_audioThreadBufferSize{ 0 };
 };

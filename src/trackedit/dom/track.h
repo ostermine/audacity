@@ -16,7 +16,8 @@ enum class TrackType {
     Undefined,
     Mono,
     Stereo,
-    Label
+    Label,
+    Midi
 };
 
 enum class TrackFormat : int {

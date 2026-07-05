@@ -253,6 +253,12 @@ static UiActionList STATIC_ACTIONS = {
              TranslatableString("action", "Show label editor"),
              TranslatableString("action", "Show label editor")
              ),
+    UiAction("pianoroll-open",
+             au::context::UiCtxProjectOpened,
+             au::context::CTX_PROJECT_OPENED,
+             TranslatableString("action", "Open piano roll"),
+             TranslatableString("action", "Open piano roll")
+             ),
     UiAction("realtime-effect-move-up",
              au::context::UiCtxAny,
              au::context::CTX_ANY,

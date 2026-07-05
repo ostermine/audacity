@@ -125,6 +125,7 @@ private:
     void newMonoTrack();
     void newStereoTrack();
     void newLabelTrack();
+    void newMidiTrack();
 
     void deleteTracks(const muse::actions::ActionData&);
     void duplicateTracks(const muse::actions::ActionData&);

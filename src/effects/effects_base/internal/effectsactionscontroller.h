@@ -16,6 +16,9 @@
 #include "spectrogram/ifrequencyselectioncontroller.h"
 
 #include "playback/iplaybackcontroller.h"
+#include "context/iglobalcontext.h"
+#include "trackedit/iselectioncontroller.h"
+#include "trackedit/iprojecthistory.h"
 #include "../ieffectexecutionscenario.h"
 #include "../ieffectsprovider.h"
 #include "../ieffectpresetsscenario.h"
@@ -38,6 +41,9 @@ class EffectsActionsController : public muse::actions::Actionable, public muse::
     muse::ContextInject<muse::IInteractive> interactive{ this };
     muse::ContextInject<au::playback::IPlaybackController> playbackController{ this };
     muse::ContextInject<spectrogram::IFrequencySelectionController> frequencySelectionController{ this };
+    muse::ContextInject<au::context::IGlobalContext> globalContext{ this };
+    muse::ContextInject<au::trackedit::ISelectionController> selectionController{ this };
+    muse::ContextInject<au::trackedit::IProjectHistory> projectHistory{ this };
 
 public:
     EffectsActionsController(const muse::modularity::ContextPtr& ctx)
@@ -63,6 +69,10 @@ private:
     void exportPreset(const muse::actions::ActionQuery& q);
     void toggleVendorUI(const muse::actions::ActionQuery& q);
     void openPluginManager();
+
+    void setMidiInstrument(const muse::actions::ActionData& args);
+    void renderMidiTrack(const muse::actions::ActionData& args);
+    bool doRenderMidiTrack(const trackedit::TrackId& trackId);
 
     std::shared_ptr<EffectsUiActions> m_uiActions;
     muse::async::Channel<muse::actions::ActionCodeList> m_canReceiveActionsChanged;

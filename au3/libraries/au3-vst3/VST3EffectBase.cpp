@@ -72,6 +72,12 @@ EffectType VST3EffectBase::GetType() const
         return EffectTypeProcess;
     }
 
+    //Instruments (synths, samplers) are hosted as generators:
+    //they produce audio from note events queued by the host
+    if (std::find(cats.begin(), cats.end(), kInstrument) != cats.end()) {
+        return EffectTypeGenerate;
+    }
+
     return EffectTypeNone;
 }
 

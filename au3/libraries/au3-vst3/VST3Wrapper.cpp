@@ -124,7 +124,8 @@ const VST3EffectSettings& GetSettings(const EffectSettings& settings)
     return *vst3settings;
 }
 
-//Activates main audio input/output buses and disables others (event, audio aux)
+//Activates main audio input/output buses and event input buses,
+//disables others (event outputs, audio aux)
 bool ActivateMainAudioBuses(Steinberg::Vst::IComponent& component)
 {
     using namespace Steinberg;
@@ -170,8 +171,10 @@ bool ActivateMainAudioBuses(Steinberg::Vst::IComponent& component)
         component.activateBus(Vst::kAudio, Vst::kOutput, i, busInfo.busType == Vst::kMain);
         defaultOutputSpeakerArrangements.push_back(arrangement);
     }
+    //Event inputs are activated so that note events reach instruments (VSTi);
+    //event outputs are kept inactive - the host does not consume them
     for (int i = 0, count = component.getBusCount(Vst::kEvent, Vst::kInput); i < count; ++i) {
-        component.activateBus(Vst::kEvent, Vst::kInput, i, 0);
+        component.activateBus(Vst::kEvent, Vst::kInput, i, 1);
     }
     for (int i = 0, count = component.getBusCount(Vst::kEvent, Vst::kOutput); i < count; ++i) {
         component.activateBus(Vst::kEvent, Vst::kOutput, i, 0);
@@ -194,8 +197,7 @@ bool SetupProcessing(Steinberg::Vst::IComponent& component, Steinberg::Vst::Proc
 
     if (processor->setupProcessing(setup) == kResultOk) {
         //We don't (yet) support custom input/output channel configuration
-        //on the host side. No support for event bus. Use default bus and
-        //channel configuration
+        //on the host side. Use default bus and channel configuration
         return ActivateMainAudioBuses(component);
     }
     return false;
@@ -781,10 +783,22 @@ bool VST3Wrapper::Initialize(EffectSettings& settings, Steinberg::Vst::SampleRat
     constexpr auto fallbackOnDefaults = false;
     FetchSettings(settings, fallbackOnDefaults);
 
+    mPendingEvents.clear();
+    mInputEvents.setMaxSize(512);
+    mProcessedSamples = 0;
+
     if (mEffectComponent->setActive(true) == kResultOk) {
         if (mAudioProcessor->setProcessing(true) != kResultFalse) {
-            mProcessContext.state = Vst::ProcessContext::kPlaying;
+            //Tempo and time signature are fixed placeholders for now;
+            //instruments with tempo-synced features expect them to be valid
+            mProcessContext.state = Vst::ProcessContext::kPlaying
+                                    | Vst::ProcessContext::kTempoValid
+                                    | Vst::ProcessContext::kTimeSigValid;
             mProcessContext.sampleRate = sampleRate;
+            mProcessContext.tempo = 120.0;
+            mProcessContext.timeSigNumerator = 4;
+            mProcessContext.timeSigDenominator = 4;
+            mProcessContext.projectTimeSamples = 0;
 
             mActive = true;
             ConsumeChanges(settings);
@@ -897,6 +911,23 @@ size_t VST3Wrapper::Process(const float* const* inBlock, float* const* outBlock,
                                                                  static_cast<decltype(blockLen)>(mSetup.maxSamplesPerBlock)
                                                                  ));
 
+    mInputEvents.clear();
+    if (!mPendingEvents.empty() && data.numSamples > 0) {
+        const auto blockEnd = mProcessedSamples + data.numSamples;
+        for (auto& e : mPendingEvents) {
+            if (e.time >= mProcessedSamples && e.time < blockEnd) {
+                e.event.sampleOffset = static_cast<int32>(e.time - mProcessedSamples);
+                mInputEvents.addEvent(e.event);
+            }
+        }
+        mPendingEvents.erase(
+            std::remove_if(mPendingEvents.begin(), mPendingEvents.end(),
+                           [blockEnd](const PendingEvent& e) { return e.time < blockEnd; }),
+            mPendingEvents.end());
+    }
+    data.inputEvents = &mInputEvents;
+    mProcessContext.projectTimeSamples = mProcessedSamples;
+
     data.numInputs = inBlock == nullptr ? 0 : mEffectComponent->getBusCount(Vst::kAudio, Vst::kInput);
     data.numOutputs = outBlock == nullptr ? 0 : mEffectComponent->getBusCount(Vst::kAudio, Vst::kOutput);
 
@@ -948,8 +979,42 @@ size_t VST3Wrapper::Process(const float* const* inBlock, float* const* outBlock,
 
     const auto processResult = mAudioProcessor->process(data);
 
-    return processResult == kResultOk
-           ? data.numSamples : 0;
+    if (processResult == kResultOk) {
+        mProcessedSamples += data.numSamples;
+        return data.numSamples;
+    }
+    return 0;
+}
+
+bool VST3Wrapper::HasEventInputBus() const
+{
+    return mEffectComponent->getBusCount(Steinberg::Vst::kEvent, Steinberg::Vst::kInput) > 0;
+}
+
+void VST3Wrapper::QueueNoteEvent(Steinberg::int64 sampleTime, Steinberg::int64 sampleDuration, Steinberg::int16 pitch, float velocity)
+{
+    using namespace Steinberg;
+
+    Vst::Event noteOn { };
+    noteOn.busIndex = 0;
+    noteOn.type = Vst::Event::kNoteOnEvent;
+    noteOn.noteOn.channel = 0;
+    noteOn.noteOn.pitch = pitch;
+    noteOn.noteOn.tuning = 0.f;
+    noteOn.noteOn.velocity = velocity;
+    noteOn.noteOn.length = 0;
+    noteOn.noteOn.noteId = -1;
+    mPendingEvents.push_back({ sampleTime, noteOn });
+
+    Vst::Event noteOff { };
+    noteOff.busIndex = 0;
+    noteOff.type = Vst::Event::kNoteOffEvent;
+    noteOff.noteOff.channel = 0;
+    noteOff.noteOff.pitch = pitch;
+    noteOff.noteOff.tuning = 0.f;
+    noteOff.noteOff.velocity = 0.f;
+    noteOff.noteOff.noteId = -1;
+    mPendingEvents.push_back({ sampleTime + sampleDuration, noteOff });
 }
 
 void VST3Wrapper::SuspendProcessing()

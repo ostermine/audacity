@@ -88,6 +88,7 @@ public:
 
     virtual bool newMonoTrack() = 0;
     virtual bool newStereoTrack() = 0;
+    virtual bool newMidiTrack() = 0;
     virtual muse::RetVal<TrackId> newLabelTrack(const muse::String& title = muse::String()) = 0;
 
     virtual bool deleteTracks(const TrackIdList& trackIds) = 0;

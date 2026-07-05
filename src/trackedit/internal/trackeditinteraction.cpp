@@ -293,6 +293,11 @@ bool TrackeditInteraction::newStereoTrack()
     return withPlaybackStop(&ITrackeditInteraction::newStereoTrack);
 }
 
+bool TrackeditInteraction::newMidiTrack()
+{
+    return withPlaybackStop(&ITrackeditInteraction::newMidiTrack);
+}
+
 muse::RetVal<TrackId> TrackeditInteraction::newLabelTrack(const muse::String& title)
 {
     return withPlaybackStopRetVal(&ITrackeditInteraction::newLabelTrack, title);

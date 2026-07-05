@@ -3,6 +3,7 @@
 */
 
 #include "project/iaudacityproject.h"
+#include "trackedit/itrackeditproject.h"
 
 #include "projectsceneactionscontroller.h"
 
@@ -26,6 +27,9 @@ static const ActionCode CLIP_GAIN_CODE("clip-gain");
 
 static const muse::Uri EDIT_PITCH_AND_SPEED_URI("audacity://projectscene/editpitchandspeed");
 
+static const ActionCode PIANOROLL_OPEN_CODE("pianoroll-open");
+static const muse::Uri PIANOROLL_URI("audacity://projectscene/pianoroll");
+
 void ProjectSceneActionsController::init()
 {
     dispatcher()->reg(this, MINUTES_SECONDS_RULER, this, &ProjectSceneActionsController::toggleMinutesSecondsRuler);
@@ -41,6 +45,7 @@ void ProjectSceneActionsController::init()
                       &ProjectSceneActionsController::togglePlaybackOnRulerClickEnabled);
     dispatcher()->reg(this, TOGGLE_TRACK_HALF_WAVE, this, &ProjectSceneActionsController::toggleTrackHalfWave);
     dispatcher()->reg(this, LABEL_OPEN_EDITOR_CODE, this, &ProjectSceneActionsController::openLabelEditor);
+    dispatcher()->reg(this, PIANOROLL_OPEN_CODE, this, &ProjectSceneActionsController::openPianoRoll);
     dispatcher()->reg(this, CLIP_GAIN_CODE, this, &ProjectSceneActionsController::toggleAutomation);
 }
 
@@ -132,6 +137,33 @@ void ProjectSceneActionsController::openClipPitchAndSpeedEdit(const ActionData& 
 void ProjectSceneActionsController::openLabelEditor()
 {
     interactive()->open("audacity://projectscene/openlabeleditor");
+}
+
+void ProjectSceneActionsController::openPianoRoll(const ActionData& args)
+{
+    if (interactive()->isOpened(PIANOROLL_URI).val) {
+        return;
+    }
+
+    IF_ASSERT_FAILED(args.count() == 1) {
+        return;
+    }
+
+    trackedit::ClipKey clipKey = args.arg<trackedit::ClipKey>(0);
+    if (!clipKey.isValid()) {
+        return;
+    }
+
+    muse::UriQuery query(PIANOROLL_URI);
+    query.addParam("trackId", muse::Val(std::to_string(clipKey.trackId)));
+
+    if (const auto prj = globalContext()->currentTrackeditProject()) {
+        if (const auto track = prj->track(clipKey.trackId)) {
+            query.addParam("trackName", muse::Val(track->title.toStdString()));
+        }
+    }
+
+    interactive()->open(query);
 }
 
 void ProjectSceneActionsController::togglePlaybackOnRulerClickEnabled()

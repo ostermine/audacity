@@ -70,6 +70,7 @@ public:
 
     MOCK_METHOD(bool, newMonoTrack, (), (override));
     MOCK_METHOD(bool, newStereoTrack, (), (override));
+    MOCK_METHOD(bool, newMidiTrack, (), (override));
     MOCK_METHOD(muse::RetVal<TrackId>, newLabelTrack, (const muse::String&), (override));
 
     MOCK_METHOD(bool, deleteTracks, (const TrackIdList&), (override));

@@ -72,6 +72,7 @@ static const ActionCode RANGE_SELECTION_SPLIT_DELETE("split-delete-selected");
 static const ActionCode NEW_MONO_TRACK("new-mono-track");
 static const ActionCode NEW_STEREO_TRACK("new-stereo-track");
 static const ActionCode NEW_LABEL_TRACK("new-label-track");
+static const ActionCode NEW_MIDI_TRACK("new-midi-track");
 static const ActionCode TRACK_DELETE("track-delete");
 static const ActionCode TRACK_DUPLICATE_CODE("track-duplicate");
 static const ActionCode TRACK_MOVE_UP("track-move-up");
@@ -179,6 +180,7 @@ static const std::vector<ActionCode> actionsDisabledDuringRecording {
     NEW_MONO_TRACK,
     NEW_STEREO_TRACK,
     NEW_LABEL_TRACK,
+    NEW_MIDI_TRACK,
     TRIM_AUDIO_OUTSIDE_SELECTION,
     SILENCE_AUDIO_SELECTION,
     TRACKEDIT_UNDO,
@@ -257,6 +259,7 @@ void TrackeditActionsController::init()
     dispatcher()->reg(this, NEW_MONO_TRACK, this, &TrackeditActionsController::newMonoTrack);
     dispatcher()->reg(this, NEW_STEREO_TRACK, this, &TrackeditActionsController::newStereoTrack);
     dispatcher()->reg(this, NEW_LABEL_TRACK, this, &TrackeditActionsController::newLabelTrack);
+    dispatcher()->reg(this, NEW_MIDI_TRACK, this, &TrackeditActionsController::newMidiTrack);
     dispatcher()->reg(this, TRACK_DELETE, this, &TrackeditActionsController::deleteTracks);
     dispatcher()->reg(this, TRACK_DUPLICATE_CODE, this, &TrackeditActionsController::duplicateTracks);
     dispatcher()->reg(this, TRACK_MOVE_UP, this, &TrackeditActionsController::moveTracksUp);
@@ -1392,6 +1395,11 @@ void TrackeditActionsController::newStereoTrack()
 void TrackeditActionsController::newLabelTrack()
 {
     trackeditInteraction()->newLabelTrack();
+}
+
+void TrackeditActionsController::newMidiTrack()
+{
+    trackeditInteraction()->newMidiTrack();
 }
 
 void TrackeditActionsController::deleteTracks(const muse::actions::ActionData&)

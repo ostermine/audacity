@@ -6,10 +6,24 @@
 #include "effects/effects_base/internal/effectsutils.h"
 #include "effectsuiactions.h"
 
+#include <algorithm>
+
 #include "spectrogram/spectrogramtypes.h"
 #include "wx/string.h"
 
 #include "au3-components/EffectAutomationParameters.h"
+#include "au3-effects/MidiRenderQueue.h"
+#include "au3-numeric-formats/ProjectTimeSignature.h"
+#include "au3-wave-track/MidiInstrument.h"
+#include "au3-wave-track/MidiSequence.h"
+#include "au3-wave-track/WaveTrack.h"
+
+#include "au3wrap/internal/domaccessor.h"
+#include "au3wrap/au3types.h"
+
+#include "project/iaudacityproject.h"
+
+#include "translation.h"
 
 #include "log.h"
 
@@ -71,6 +85,11 @@ void EffectsActionsController::registerActions()
 
     dispatcher()->reg(this, ActionQuery("action://effects/apply"), this, &EffectsActionsController::applyEffect);
     dispatcher()->reg(this, ActionQuery("action://effects/toggle_vendor_ui"), this, &EffectsActionsController::toggleVendorUI);
+
+    // MIDI track (AU4 DAW fork); args-based like clip-pitch-speed-open —
+    // query-actions would need a UiAction per full query string
+    dispatcher()->reg(this, "midi-set-instrument", this, &EffectsActionsController::setMidiInstrument);
+    dispatcher()->reg(this, "midi-render", this, &EffectsActionsController::renderMidiTrack);
 
     m_uiActions->reload();
     uiActionsRegister()->unreg(m_uiActions);
@@ -222,4 +241,101 @@ muse::async::Channel<muse::actions::ActionCodeList> EffectsActionsController::ca
 void EffectsActionsController::openPluginManager()
 {
     interactive()->open("audacity://effects/plugin_manager");
+}
+
+void EffectsActionsController::setMidiInstrument(const muse::actions::ActionData& args)
+{
+    IF_ASSERT_FAILED(args.count() == 2) {
+        return;
+    }
+
+    const trackedit::TrackId trackId = args.arg<trackedit::TrackId>(0);
+    const std::string effectId = args.arg<std::string>(1);
+
+    const auto project = globalContext()->currentProject();
+    if (!project) {
+        return;
+    }
+    const auto au3Project = reinterpret_cast<au::au3::Au3Project*>(project->au3ProjectPtr());
+    WaveTrack* track = au::au3::DomAccessor::findWaveTrack(*au3Project, ::TrackId(trackId));
+    if (!track || !track->IsMidi()) {
+        return;
+    }
+
+    MidiInstrument::Get(*track).SetEffectId(effectId);
+    projectHistory()->pushHistoryState("Set MIDI instrument", "Set MIDI instrument");
+
+    doRenderMidiTrack(trackId);
+}
+
+void EffectsActionsController::renderMidiTrack(const muse::actions::ActionData& args)
+{
+    IF_ASSERT_FAILED(args.count() == 1) {
+        return;
+    }
+
+    doRenderMidiTrack(args.arg<trackedit::TrackId>(0));
+}
+
+bool EffectsActionsController::doRenderMidiTrack(const trackedit::TrackId& trackId)
+{
+    const auto project = globalContext()->currentProject();
+    if (!project) {
+        return false;
+    }
+    const auto au3Project = reinterpret_cast<au::au3::Au3Project*>(project->au3ProjectPtr());
+    WaveTrack* track = au::au3::DomAccessor::findWaveTrack(*au3Project, ::TrackId(trackId));
+    if (!track || !track->IsMidi()) {
+        return false;
+    }
+
+    const std::string& effectId = MidiInstrument::Get(*track).EffectId();
+    if (effectId.empty()) {
+        interactive()->error(muse::trc("effects", "No instrument assigned"),
+                             muse::trc("effects", "Right-click the MIDI clip and pick an instrument first."));
+        return false;
+    }
+
+    const std::vector<MidiNote>& notes = MidiSequence::Get(*track).Notes();
+    if (notes.empty()) {
+        return false;
+    }
+
+    const double quarterSec = ProjectTimeSignature::Get(*au3Project).GetQuarterDuration();
+
+    std::vector<MidiRenderQueue::Note> renderNotes;
+    renderNotes.reserve(notes.size());
+    double endSec = 0.0;
+    for (const MidiNote& note : notes) {
+        MidiRenderQueue::Note rn;
+        rn.timeSec = note.startBeats * quarterSec;
+        rn.durationSec = note.lengthBeats * quarterSec;
+        rn.pitch = note.pitch;
+        rn.velocity = note.velocity;
+        endSec = std::max(endSec, rn.timeSec + rn.durationSec);
+        renderNotes.push_back(rn);
+    }
+    //let releases/reverb of the instrument ring out a little
+    constexpr double releaseTailSec = 0.5;
+    endSec += releaseTailSec;
+
+    playbackController()->stop();
+
+    // the generator pipeline renders into the selected region of the track
+    selectionController()->resetSelectedClips();
+    selectionController()->setSelectedTracks({ trackId });
+    selectionController()->setDataSelectedStartTime(0.0, true);
+    selectionController()->setDataSelectedEndTime(endSec, true);
+
+    MidiRenderQueue::Set(std::move(renderNotes));
+    const muse::Ret ret = effectExecutionScenario()->performEffect(
+        EffectId::fromStdString(effectId), std::string());
+    // don't leak notes into a later manual Generate if the effect failed early
+    MidiRenderQueue::Set({});
+
+    if (!ret) {
+        LOGE() << "MIDI render failed: effectId=" << effectId << ", code=" << ret.code() << ", text=" << ret.text();
+        return false;
+    }
+    return true;
 }

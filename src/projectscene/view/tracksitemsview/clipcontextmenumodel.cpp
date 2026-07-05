@@ -9,6 +9,11 @@
 #include "global/realfn.h"
 #include "ui/view/iconcodes.h"
 
+#include "au3-wave-track/MidiInstrument.h"
+#include "au3-wave-track/WaveTrack.h"
+#include "au3wrap/internal/domaccessor.h"
+#include "au3wrap/au3types.h"
+
 using namespace au::projectscene;
 using namespace muse::uicomponents;
 using namespace muse::actions;
@@ -70,7 +75,29 @@ void ClipContextMenuModel::load()
                      muse::TranslatableString("clip", "Delete and close gap on all tracks")),
     };
 
-    MenuItemList items {
+    MenuItemList items;
+
+    {
+        // MIDI-flagged tracks get the piano roll as the primary clip action
+        const trackedit::ITrackeditProjectPtr trackeditPrj = globalContext()->currentTrackeditProject();
+        std::optional<trackedit::Track> track;
+        if (trackeditPrj) {
+            track = trackeditPrj->track(m_clipKey.trackId());
+        }
+        if (track && track->type == trackedit::TrackType::Midi) {
+            items << makeItemWithArg("pianoroll-open");
+            items << makeMidiInstrumentMenu();
+
+            if (MenuItem* renderItem = makeMenuItem("midi-render")) {
+                renderItem->setArgs(ActionData::make_arg1<trackedit::TrackId>(m_clipKey.trackId()));
+                items << renderItem;
+            }
+
+            items << makeSeparator();
+        }
+    }
+
+    items << MenuItemList {
         makeItemWithArg("clip-properties"),
         makeItemWithArg("rename-item", muse::TranslatableString("clip", "Rename clip")),
         makeMenu(muse::TranslatableString("clip", "Clip color"), colorItems, "colorMenu"),
@@ -257,6 +284,42 @@ void ClipContextMenuModel::updateColorMenu()
     } else {
         colorMenu.setState(muse::ui::UiActionState::make_enabled());
     }
+}
+
+MenuItem* ClipContextMenuModel::makeMidiInstrumentMenu()
+{
+    // current binding lives on the au3 track
+    std::string currentEffectId;
+    if (const auto project = globalContext()->currentProject()) {
+        const auto au3Project = reinterpret_cast<au::au3::Au3Project*>(project->au3ProjectPtr());
+        if (const WaveTrack* track = au::au3::DomAccessor::findWaveTrack(*au3Project, ::TrackId(m_clipKey.trackId()))) {
+            currentEffectId = MidiInstrument::Get(*track).EffectId();
+        }
+    }
+
+    MenuItemList items;
+    for (const effects::EffectMeta& meta : effectsProvider()->effectMetaList()) {
+        // VST instruments are classified as VST3 generators (stage 0)
+        if (meta.type != effects::EffectType::Generator || meta.family != effects::EffectFamily::VST3) {
+            continue;
+        }
+
+        MenuItem* item = makeMenuItem("midi-set-instrument", muse::TranslatableString::untranslatable(meta.title));
+        if (!item) {
+            continue;
+        }
+        // all instrument entries share one action code; ids must stay unique
+        item->setId(QString::fromStdString("midi-instrument-" + meta.id.toStdString()));
+        item->setArgs(ActionData::make_arg2<trackedit::TrackId, std::string>(
+                          m_clipKey.trackId(), meta.id.toStdString()));
+
+        auto state = item->state();
+        state.checked = !currentEffectId.empty() && meta.id.toStdString() == currentEffectId;
+        item->setState(state);
+        items << item;
+    }
+
+    return makeMenu(muse::TranslatableString("clip", "Instrument"), items, "midiInstrumentMenu");
 }
 
 MenuItemList ClipContextMenuModel::makeClipColourItems()

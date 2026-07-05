@@ -25,6 +25,12 @@ au::trackedit::TrackType trackType(const Au3Track* track)
         return au::trackedit::TrackType::Undefined;
     }
 
+    if (const auto waveTrack = dynamic_cast<const WaveTrack*>(track)) {
+        if (waveTrack->IsMidi()) {
+            return au::trackedit::TrackType::Midi;
+        }
+    }
+
     switch (track->NChannels()) {
     case 1:
         return au::trackedit::TrackType::Mono;

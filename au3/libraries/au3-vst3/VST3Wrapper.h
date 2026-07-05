@@ -2,8 +2,10 @@
 
 #include <pluginterfaces/base/smartpointer.h>
 #include <pluginterfaces/vst/ivstaudioprocessor.h>
+#include <pluginterfaces/vst/ivstevents.h>
 #include <pluginterfaces/vst/ivstparameterchanges.h>
 #include <pluginterfaces/vst/ivstprocesscontext.h>
+#include <public.sdk/source/vst/hosting/eventlist.h>
 #include <public.sdk/source/vst/hosting/module.h>
 
 #include "au3-components/EffectInterface.h"
@@ -116,6 +118,13 @@ public:
     //Intialize first, before calling to Process. It's safe to it use from another thread
     size_t Process(const float* const* inBlock, float* const* outBlock, size_t blockLen);
 
+    //!Returns true if the plugin has at least one event input bus (e.g. VST instruments)
+    bool HasEventInputBus() const;
+
+    //!Queues a note to be delivered to the plugin during subsequent Process calls.
+    //!Positions are in samples, relative to the first Process call after Initialize
+    void QueueNoteEvent(Steinberg::int64 sampleTime, Steinberg::int64 sampleDuration, Steinberg::int16 pitch, float velocity);
+
     void SuspendProcessing();
     void ResumeProcessing();
 
@@ -158,4 +167,14 @@ private:
     std::unique_ptr<SingleInputParameterValue[]> mParameterQueues;
 
     Steinberg::Vst::ProcessContext mProcessContext { };
+
+    //Note events scheduled ahead of time (VST instruments), consumed by Process
+    struct PendingEvent
+    {
+        Steinberg::int64 time;
+        Steinberg::Vst::Event event;
+    };
+    std::vector<PendingEvent> mPendingEvents;
+    Steinberg::Vst::EventList mInputEvents;
+    Steinberg::int64 mProcessedSamples { 0 };
 };

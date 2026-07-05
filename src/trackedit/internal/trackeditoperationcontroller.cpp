@@ -647,6 +647,15 @@ bool TrackeditOperationController::newStereoTrack()
     return false;
 }
 
+bool TrackeditOperationController::newMidiTrack()
+{
+    if (tracksInteraction()->newMidiTrack()) {
+        projectHistory()->pushHistoryState("Created new MIDI track", "New MIDI track");
+        return true;
+    }
+    return false;
+}
+
 muse::RetVal<TrackId> TrackeditOperationController::newLabelTrack(const muse::String& title)
 {
     auto track = tracksInteraction()->newLabelTrack(title);

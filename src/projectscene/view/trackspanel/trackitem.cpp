@@ -23,6 +23,8 @@ static muse::ui::IconCode::Code iconFromTrackType(au::trackedit::TrackType type)
         return muse::ui::IconCode::Code::CIRCLE;
     case au::trackedit::TrackType::Stereo:
         return muse::ui::IconCode::Code::TWO_CIRCLES;
+    case au::trackedit::TrackType::Midi:
+        return muse::ui::IconCode::Code::MUSIC_NOTES;
     default:
         return muse::ui::IconCode::Code::MICROPHONE;
     }

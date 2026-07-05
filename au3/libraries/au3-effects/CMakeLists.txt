@@ -17,6 +17,8 @@ set( SOURCES
    EffectPlugin.h
    LoadEffects.cpp
    LoadEffects.h
+   MidiRenderQueue.cpp
+   MidiRenderQueue.h
    MixAndRender.cpp
    MixAndRender.h
    PerTrackEffect.cpp

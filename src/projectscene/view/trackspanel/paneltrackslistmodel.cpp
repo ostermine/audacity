@@ -138,6 +138,8 @@ void PanelTracksListModel::addTrack(TrackTypes::Type type)
         dispatcher()->dispatch("new-stereo-track");
     } else if (type == TrackTypes::Type::LABEL) {
         dispatcher()->dispatch("new-label-track");
+    } else if (type == TrackTypes::Type::MIDI) {
+        dispatcher()->dispatch("new-midi-track");
     }
 }
 
@@ -565,6 +567,7 @@ TrackItem* PanelTracksListModel::buildTrackItem(const Track& track)
     switch (track.type) {
     case trackedit::TrackType::Mono:
     case trackedit::TrackType::Stereo:
+    case trackedit::TrackType::Midi:
         item = new WaveTrackItem(this);
         break;
     case trackedit::TrackType::Label:

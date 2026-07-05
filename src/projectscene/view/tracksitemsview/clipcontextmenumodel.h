@@ -6,6 +6,8 @@
 #include "context/iglobalcontext.h"
 #include "uicomponents/qml/Muse/UiComponents/abstractmenumodel.h"
 
+#include "effects/effects_base/ieffectsprovider.h"
+
 #include "iprojectsceneconfiguration.h"
 #include "types/projectscenetypes.h"
 
@@ -15,6 +17,7 @@ class ClipContextMenuModel : public muse::uicomponents::AbstractMenuModel
     Q_OBJECT
 
     muse::GlobalInject<projectscene::IProjectSceneConfiguration> projectSceneConfiguration;
+    muse::GlobalInject<effects::IEffectsProvider> effectsProvider;
     muse::ContextInject<context::IGlobalContext> globalContext{ this };
 
     Q_PROPERTY(ClipKey clipKey READ clipKey WRITE setClipKey NOTIFY clipKeyChanged FINAL)
@@ -40,6 +43,8 @@ private:
     muse::uicomponents::MenuItemList makeClipColourItems();
     void updateColorCheckedState();
     void updateColorMenu();
+
+    muse::uicomponents::MenuItem* makeMidiInstrumentMenu();
 
     ClipKey m_clipKey;
     muse::actions::ActionCodeList m_colorChangeActionCodeList;

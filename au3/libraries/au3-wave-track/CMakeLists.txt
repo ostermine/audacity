@@ -19,6 +19,10 @@ and WaveTrackSink make new WaveTrack objects.
 set( TARGET au3-wave-track )
 
 set( SOURCES
+   MidiInstrument.cpp
+   MidiInstrument.h
+   MidiSequence.cpp
+   MidiSequence.h
    SampleBlock.cpp
    SampleBlock.h
    Sequence.cpp

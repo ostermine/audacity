@@ -43,6 +43,8 @@
 #include "view/tracksitemsview/tracklabelslayoutmanager.h"
 #include "view/tracksitemsview/tracklabelitem.h"
 #include "view/tracksitemsview/waveview.h"
+#include "view/tracksitemsview/midinotesview.h"
+#include "view/pianoroll/pianorollcanvas.h"
 #include "view/tracksitemsview/clipcontextmenumodel.h"
 #include "view/tracksitemsview/multiclipcontextmenumodel.h"
 #include "view/tracksitemsview/labelcontextmenumodel.h"
@@ -125,6 +127,8 @@ void ProjectSceneModule::resolveImports()
                            "Audacity/ProjectScene/tracksitemsview/labeleditor/AddNewLabelTrackDialog.qml");
         ir->registerQmlUri(muse::Uri("audacity://projectscene/geteffects"),
                            "Audacity/ProjectScene/toolbars/GetEffectsDialog.qml");
+        ir->registerQmlUri(muse::Uri("audacity://projectscene/pianoroll"),
+                           "Audacity/ProjectScene/pianoroll/PianoRollDialog.qml");
     }
 }
 
@@ -178,6 +182,8 @@ void ProjectSceneModule::registerUiTypes()
     qmlRegisterType<TrackLabelsLayoutManager>("Audacity.ProjectScene", 1, 0, "TrackLabelsLayoutManager");
     qmlRegisterUncreatableType<TrackLabelItem>("Audacity.ProjectScene", 1, 0, "TrackLabelItem", "Not creatable from QML");
     qmlRegisterType<WaveView>("Audacity.ProjectScene", 1, 0, "WaveView");
+    qmlRegisterType<MidiNotesView>("Audacity.ProjectScene", 1, 0, "MidiNotesView");
+    qmlRegisterType<PianoRollCanvas>("Audacity.ProjectScene", 1, 0, "PianoRollCanvas");
     qmlRegisterType<ClipContextMenuModel>("Audacity.ProjectScene", 1, 0, "ClipContextMenuModel");
     qmlRegisterType<MultiClipContextMenuModel>("Audacity.ProjectScene", 1, 0, "MultiClipContextMenuModel");
     qmlRegisterType<LabelContextMenuModel>("Audacity.ProjectScene", 1, 0, "LabelContextMenuModel");

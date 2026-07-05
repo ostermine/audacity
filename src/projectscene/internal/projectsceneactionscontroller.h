@@ -56,6 +56,8 @@ private:
 
     void openLabelEditor();
 
+    void openPianoRoll(const muse::actions::ActionData& args);
+
     muse::async::Channel<muse::actions::ActionCode> m_actionCheckedChanged;
     muse::async::Channel<muse::actions::ActionCode> m_actionEnabledChanged;
 };

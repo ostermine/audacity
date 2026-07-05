@@ -346,6 +346,12 @@ UiActionList STATIC_ACTIONS = {
              TranslatableString("action", "New label track"),
              TranslatableString("action", "New label track")
              ),
+    UiAction("new-midi-track",
+             au::context::UiCtxAny,
+             au::context::CTX_ANY,
+             TranslatableString("action", "New MIDI track"),
+             TranslatableString("action", "New MIDI track")
+             ),
     UiAction("label-add",
              au::context::UiCtxProjectOpened,
              au::context::CTX_ANY,

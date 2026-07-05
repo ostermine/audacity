@@ -338,6 +338,7 @@ MenuItem* AppMenuModel::makeTracksMenu()
         makeMenuItem("new-mono-track"),
         makeMenuItem("new-stereo-track"),
         makeMenuItem("new-label-track"),
+        makeMenuItem("new-midi-track"),
         makeSeparator(),
         makeMenuItem("duplicate-track"),
         makeMenuItem("remove-tracks"),

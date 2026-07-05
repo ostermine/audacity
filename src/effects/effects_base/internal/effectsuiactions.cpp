@@ -68,6 +68,18 @@ static UiActionList STATIC_ACTIONS = {
              TranslatableString("effects", "Use vendor UI"),
              TranslatableString("effects", "Toggle between vendor UI and fallback UI"),
              Checkable::Yes
+             ),
+    UiAction("midi-set-instrument",
+             au::context::UiCtxProjectOpened,
+             au::context::CTX_PROJECT_OPENED,
+             TranslatableString("action", "Set MIDI instrument"),
+             TranslatableString("action", "Set MIDI instrument")
+             ),
+    UiAction("midi-render",
+             au::context::UiCtxProjectOpened,
+             au::context::CTX_PROJECT_OPENED,
+             TranslatableString("action", "Render MIDI audio"),
+             TranslatableString("action", "Render notes through the assigned instrument")
              )
 };
 

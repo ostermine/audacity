@@ -231,6 +231,9 @@ struct WaveTrackData : ClientData::Cloneable<> {
     int GetRate() const;
     void SetRate(int value);
 
+    bool GetIsMidi() const;
+    void SetIsMidi(bool value);
+
 private:
     //! Atomic because it may be read by worker threads in playback
     std::atomic<float> mGain{ 1.0f };
@@ -240,6 +243,8 @@ private:
     int mRate{ 44100 };
     double mOrigin{ 0.0 };
     sampleFormat mFormat { floatSample };
+    //! Marks a wave track that hosts MIDI note data rendered to audio
+    bool mIsMidi{ false };
 };
 
 static const ChannelGroup::Attachments::RegisteredFactory
@@ -254,6 +259,7 @@ WaveTrackData::WaveTrackData(const WaveTrackData& other)
     mRate = other.mRate;
     mOrigin = other.mOrigin;
     mFormat = other.mFormat;
+    mIsMidi = other.mIsMidi;
 }
 
 WaveTrackData::~WaveTrackData() = default;
@@ -311,6 +317,16 @@ float WaveTrackData::GetPan() const
 void WaveTrackData::SetPan(float value)
 {
     mPan.store(value, std::memory_order_relaxed);
+}
+
+bool WaveTrackData::GetIsMidi() const
+{
+    return mIsMidi;
+}
+
+void WaveTrackData::SetIsMidi(bool value)
+{
+    mIsMidi = value;
 }
 
 int WaveTrackData::GetRate() const
@@ -880,6 +896,16 @@ void WaveTrack::SetVolume(float newVolume)
 float WaveTrack::GetPan() const
 {
     return WaveTrackData::Get(*this).GetPan();
+}
+
+bool WaveTrack::IsMidi() const
+{
+    return WaveTrackData::Get(*this).GetIsMidi();
+}
+
+void WaveTrack::SetIsMidi(bool value)
+{
+    WaveTrackData::Get(*this).SetIsMidi(value);
 }
 
 void WaveTrack::DoSetPan(float value)
@@ -2629,6 +2655,7 @@ static constexpr auto Pan_attr = "pan";
 static constexpr auto Linked_attr = "linked";
 static constexpr auto SampleFormat_attr = "sampleformat";
 static constexpr auto Channel_attr = "channel"; // write-only!
+static constexpr auto IsMidi_attr = "ismidi";
 
 bool WaveTrack::HandleXMLTag(const std::string_view& tag, const AttributesList& attrs)
 {
@@ -2667,6 +2694,8 @@ bool WaveTrack::HandleXMLTag(const std::string_view& tag, const AttributesList& 
                        && Sequence::IsValidSampleFormat(nValue)) {
                 //Remember sample format until consistency check is performed.
                 SetLegacyFormat(static_cast<sampleFormat>(nValue));
+            } else if (attr == IsMidi_attr && value.TryGet(nValue)) {
+                SetIsMidi(nValue != 0);
             }
         } // while
         return true;
@@ -2800,6 +2829,9 @@ void WaveTrack::WriteOneXML(const WaveChannel& channel, XMLWriter& xmlFile,
     xmlFile.WriteAttr(Volume_attr, static_cast<double>(track.GetVolume()));
     xmlFile.WriteAttr(Pan_attr, static_cast<double>(track.GetPan()));
     xmlFile.WriteAttr(SampleFormat_attr, static_cast<long>(useLegacy ? track.mLegacyFormat : track.GetSampleFormat()));
+    if (track.IsMidi()) {
+        xmlFile.WriteAttr(IsMidi_attr, 1);
+    }
 
     // Other persistent data specified elsewhere;
     // NOT written redundantly any more

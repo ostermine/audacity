@@ -5,6 +5,7 @@
 #include "au3-exceptions/AudacityException.h"
 #include "VST3Wrapper.h"
 #include "au3-module-manager/ConfigInterface.h"
+#include "au3-effects/MidiRenderQueue.h"
 #include "VST3Utils.h"
 
 namespace {
@@ -158,9 +159,49 @@ bool VST3Instance::ProcessInitialize(EffectSettings& settings, double sampleRate
 {
     if (mWrapper->Initialize(settings, sampleRate, Steinberg::Vst::kOffline, mProcessingBlockSize)) {
         mInitialDelay = mWrapper->GetLatencySamples();
+
+        auto& effect = static_cast<const PerTrackEffect&>(mProcessor);
+        if (effect.GetType() == EffectTypeGenerate && mWrapper->HasEventInputBus()) {
+            //(AU4 DAW fork) real notes of a MIDI track, if a render was requested
+            const std::vector<MidiRenderQueue::Note> notes = MidiRenderQueue::Take();
+            if (!notes.empty()) {
+                for (const MidiRenderQueue::Note& note : notes) {
+                    mWrapper->QueueNoteEvent(
+                        static_cast<Steinberg::int64>(note.timeSec * sampleRate),
+                        static_cast<Steinberg::int64>(note.durationSec * sampleRate),
+                        static_cast<Steinberg::int16>(note.pitch), note.velocity);
+                }
+            } else {
+                QueueDefaultNotePattern(settings.extra.GetDuration(), sampleRate);
+            }
+        }
         return true;
     }
     return false;
+}
+
+void VST3Instance::QueueDefaultNotePattern(double duration, double sampleRate)
+{
+    //C-major arpeggio, quarter notes at 120 BPM
+    constexpr Steinberg::int16 pitches[] = { 60, 64, 67, 72 };
+    constexpr auto pitchCount = sizeof(pitches) / sizeof(pitches[0]);
+    constexpr float velocity = 0.8f;
+
+    const auto noteLen = static_cast<Steinberg::int64>(sampleRate * 0.5);
+    const auto totalSamples = static_cast<Steinberg::int64>(duration * sampleRate);
+
+    Steinberg::int64 pos = 0;
+    size_t i = 0;
+    while (pos + noteLen <= totalSamples) {
+        //shorten the note slightly to articulate repeated pitches
+        mWrapper->QueueNoteEvent(pos, noteLen - noteLen / 8, pitches[i % pitchCount], velocity);
+        pos += noteLen;
+        ++i;
+    }
+    if (i == 0 && totalSamples > 0) {
+        //duration is shorter than a single pattern note - hold one note instead
+        mWrapper->QueueNoteEvent(0, totalSamples, pitches[0], velocity);
+    }
 }
 
 size_t VST3Instance::GetBlockSize() const
